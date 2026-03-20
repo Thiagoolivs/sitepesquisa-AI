@@ -5,18 +5,26 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type {
+  MutationFunction,
   QueryFunction,
   QueryKey,
+  UseMutationOptions,
+  UseMutationResult,
   UseQueryOptions,
   UseQueryResult,
 } from "@tanstack/react-query";
 
-import type { HealthStatus } from "./api.schemas";
+import type {
+  AnalisarInput,
+  AnalisarResult,
+  ErrorResponse,
+  HealthStatus,
+} from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
-import type { ErrorType } from "../custom-fetch";
+import type { ErrorType, BodyType } from "../custom-fetch";
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -99,3 +107,90 @@ export function useHealthCheck<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * Calculates statistical metrics from a list of numbers
+ * @summary Analyze numbers
+ */
+export const getAnalisarUrl = () => {
+  return `/api/analisar`;
+};
+
+export const analisar = async (
+  analisarInput: AnalisarInput,
+  options?: RequestInit,
+): Promise<AnalisarResult> => {
+  return customFetch<AnalisarResult>(getAnalisarUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(analisarInput),
+  });
+};
+
+export const getAnalisarMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof analisar>>,
+    TError,
+    { data: BodyType<AnalisarInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof analisar>>,
+  TError,
+  { data: BodyType<AnalisarInput> },
+  TContext
+> => {
+  const mutationKey = ["analisar"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof analisar>>,
+    { data: BodyType<AnalisarInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return analisar(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AnalisarMutationResult = NonNullable<
+  Awaited<ReturnType<typeof analisar>>
+>;
+export type AnalisarMutationBody = BodyType<AnalisarInput>;
+export type AnalisarMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Analyze numbers
+ */
+export const useAnalisar = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof analisar>>,
+    TError,
+    { data: BodyType<AnalisarInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof analisar>>,
+  TError,
+  { data: BodyType<AnalisarInput> },
+  TContext
+> => {
+  return useMutation(getAnalisarMutationOptions(options));
+};

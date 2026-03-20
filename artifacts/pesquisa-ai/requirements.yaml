@@ -1,0 +1,12 @@
+packages:
+  "chart.js": "Required for rendering the bar chart visualization"
+  "react-chartjs-2": "React wrapper for Chart.js"
+  "framer-motion": "For polished layout animations and micro-interactions"
+  "clsx": "Utility for constructing className strings conditionally"
+  "tailwind-merge": "Utility to safely merge Tailwind CSS classes"
+
+images: []
+
+notes:
+  - Assumes @workspace/api-client-react exports useAnalisar and AnalisarResult
+  - Relies on Chart.js for data visualization, colors are interpolated based on values dynamically

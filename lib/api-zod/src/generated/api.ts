@@ -14,3 +14,21 @@ import * as zod from "zod";
 export const HealthCheckResponse = zod.object({
   status: zod.string(),
 });
+
+/**
+ * Calculates statistical metrics from a list of numbers
+ * @summary Analyze numbers
+ */
+export const AnalisarBody = zod.object({
+  numeros: zod.array(zod.number()).describe("List of numbers to analyze"),
+});
+
+export const AnalisarResponse = zod.object({
+  media: zod.number().describe("Mean (average)"),
+  mediana: zod.number().describe("Median"),
+  moda: zod.array(zod.number()).describe("Mode (most frequent values)"),
+  total: zod.number().describe("Sum of all numbers"),
+  count: zod.number().describe("Count of numbers"),
+  min: zod.number().describe("Minimum value"),
+  max: zod.number().describe("Maximum value"),
+});

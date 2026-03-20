@@ -5,14 +5,6 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-export interface HealthStatus {
-  status: string;
-}
-
-export interface AnalisarInput {
-  /** List of numbers to analyze */
-  numeros: number[];
-}
 
 export interface AnalisarResult {
   /** Mean (average) */
@@ -29,8 +21,4 @@ export interface AnalisarResult {
   min: number;
   /** Maximum value */
   max: number;
-}
-
-export interface ErrorResponse {
-  error: string;
 }

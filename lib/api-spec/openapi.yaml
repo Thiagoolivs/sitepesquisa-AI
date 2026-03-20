@@ -1,6 +1,5 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
   description: API specification
@@ -10,6 +9,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: analysis
+    description: Data analysis operations
 paths:
   /healthz:
     get:
@@ -24,6 +25,31 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /analisar:
+    post:
+      operationId: analisar
+      tags: [analysis]
+      summary: Analyze numbers
+      description: Calculates statistical metrics from a list of numbers
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnalisarInput"
+      responses:
+        "200":
+          description: Analysis results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalisarResult"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +59,54 @@ components:
           type: string
       required:
         - status
-
+    AnalisarInput:
+      type: object
+      properties:
+        numeros:
+          type: array
+          items:
+            type: number
+          description: List of numbers to analyze
+      required:
+        - numeros
+    AnalisarResult:
+      type: object
+      properties:
+        media:
+          type: number
+          description: Mean (average)
+        mediana:
+          type: number
+          description: Median
+        moda:
+          type: array
+          items:
+            type: number
+          description: Mode (most frequent values)
+        total:
+          type: number
+          description: Sum of all numbers
+        count:
+          type: integer
+          description: Count of numbers
+        min:
+          type: number
+          description: Minimum value
+        max:
+          type: number
+          description: Maximum value
+      required:
+        - media
+        - mediana
+        - moda
+        - total
+        - count
+        - min
+        - max
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error

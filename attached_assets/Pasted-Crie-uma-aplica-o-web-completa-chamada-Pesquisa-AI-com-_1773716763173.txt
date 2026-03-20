@@ -1,0 +1,80 @@
+Crie uma aplicação web completa chamada "Pesquisa AI" com frontend e backend.
+
+Tecnologias:
+- Backend em Python usando Flask
+- Frontend com HTML, CSS e JavaScript
+- Usar Chart.js para gráficos
+
+Estrutura:
+- Separar arquivos em:
+  /templates (HTML)
+  /static (CSS e JS)
+  app.py (backend Flask)
+
+Design (IMPORTANTE):
+- Tema claro (light mode)
+- Fundo principal: #f8fafc
+- Cards brancos (#ffffff) com sombra suave
+- Layout moderno, limpo e minimalista
+- Tipografia simples e profissional
+
+Navbar:
+- Fixa no topo
+- Nome "Pesquisa AI" à esquerda
+- Links: Dashboard | IA
+- Estilo elegante, com leve sombra e espaçamento equilibrado
+
+Dashboard:
+- Grid de cards com:
+  - Média
+  - Mediana
+  - Moda
+  - Total de dados
+
+Estilo dos cards:
+- Não chamar muita atenção no fundo
+- Conteúdo (números) deve ser grande e destacado
+- Pequenos indicadores visuais de cor
+
+Lógica de cores (IMPORTANTE):
+- Valores baixos → verde
+- Valores médios → amarelo
+- Valores altos → vermelho
+- Criar função que calcula a intensidade da cor com base nos dados
+- Aplicar isso nos números ou em uma barra lateral do card
+
+Gráfico:
+- Gráfico de barras com Chart.js
+- Cores seguindo a mesma lógica de intensidade (verde → vermelho)
+
+Entrada de dados:
+- Campo para inserir números separados por vírgula
+- Botão "Analisar"
+
+Backend (Flask):
+- Criar rota POST /analisar
+- Receber lista de números
+- Calcular:
+  - média
+  - mediana
+  - moda
+  - total
+- Retornar JSON com os resultados
+
+Frontend:
+- Fazer requisição fetch para o backend
+- Atualizar os cards dinamicamente com os resultados
+
+Página "IA":
+- Criar uma segunda página simples com um campo de texto
+- Botão "Analisar com IA"
+- Placeholder (sem integração real ainda)
+
+Extras:
+- Código organizado e comentado
+- Animações leves nos cards (hover)
+- Layout responsivo
+- Usar dados mockados inicialmente, mas funcional com input real
+
+Objetivo:
+Criar um sistema simples, funcional e com aparência profissional de análise de dados.
