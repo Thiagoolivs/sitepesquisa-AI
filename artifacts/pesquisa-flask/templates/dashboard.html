@@ -1,0 +1,266 @@
+{% extends "base.html" %}
+{% set active_page = "dashboard" %}
+
+{% block content %}
+<h1 class="page-title">
+  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2.5"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+  Dashboard de Análise
+</h1>
+<p class="page-subtitle">Insira números, faça upload de CSV ou colete dados de formulários.</p>
+
+<!-- Número manual -->
+<div class="input-row">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+  <input id="numerosInput" type="text" placeholder="Ex: 10, 25, 50, 30, 75, 20, 60" />
+  <button class="btn btn-primary" onclick="analisar()">Analisar</button>
+</div>
+
+<!-- Upload CSV -->
+<div class="upload-section">
+  <div class="section-header">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+    Upload de CSV
+  </div>
+  <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap;">
+    <label class="upload-area" id="csvLabel">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      <span class="upload-area-label" id="csvFileName">Clique para selecionar um arquivo <strong>.csv</strong></span>
+      <input type="file" id="csvInput" accept=".csv,text/csv" onchange="onCsvChange()" />
+    </label>
+    <button class="btn btn-success" onclick="uploadCSV()" id="csvBtn" disabled>Analisar CSV</button>
+  </div>
+  <p class="text-sm text-muted mt-2">Valores numéricos são extraídos automaticamente de qualquer coluna.</p>
+</div>
+
+<!-- Stats section -->
+<div id="statsSection">
+  {% if analise %}
+    {% set a = analise %}
+    <div class="quality-badge">
+      ✓ {{ a.count }} valores numéricos analisados
+    </div>
+    <div class="stat-grid" id="statGrid">
+      <div class="stat-card">
+        <div class="stat-bar" style="background:#2563eb"></div>
+        <div class="stat-label">Média</div>
+        <div class="stat-value">{{ a.media }}</div>
+        <div class="stat-sub">avg</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-bar" style="background:#7c3aed"></div>
+        <div class="stat-label">Mediana</div>
+        <div class="stat-value">{{ a.mediana }}</div>
+        <div class="stat-sub">mid</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-bar" style="background:#0891b2"></div>
+        <div class="stat-label">Moda</div>
+        <div class="stat-value" style="font-size:1.2rem">{{ a.moda|join(', ') or 'N/A' }}</div>
+        <div class="stat-sub">freq.</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-bar" style="background:#6366f1"></div>
+        <div class="stat-label">Total</div>
+        <div class="stat-value">{{ a.total }}</div>
+        <div class="stat-sub">{{ a.count }} itens</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-bar" style="background:#f59e0b"></div>
+        <div class="stat-label">Desvio Padrão</div>
+        <div class="stat-value">{{ a.desvio_padrao }}</div>
+        <div class="stat-sub">σ</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-bar" style="background:#16a34a"></div>
+        <div class="stat-label">Mínimo</div>
+        <div class="stat-value">{{ a.min }}</div>
+        <div class="stat-sub">menor</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-bar" style="background:#dc2626"></div>
+        <div class="stat-label">Máximo</div>
+        <div class="stat-value">{{ a.max }}</div>
+        <div class="stat-sub">maior</div>
+      </div>
+    </div>
+    <div class="insight-box" id="insightBox">
+      💡 Carregue dados para ver gráficos e insights automáticos.
+    </div>
+    <div class="chart-grid">
+      <div class="chart-wrapper">
+        <div class="chart-title">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2"><rect x="2" y="3" width="4" height="18" rx="1"/><rect x="10" y="8" width="4" height="13" rx="1"/><rect x="18" y="5" width="4" height="16" rx="1"/></svg>
+          Distribuição dos Valores
+        </div>
+        <canvas id="barChart"></canvas>
+      </div>
+      <div class="chart-wrapper">
+        <div class="chart-title">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          Evolução dos Valores
+        </div>
+        <canvas id="lineChart"></canvas>
+      </div>
+    </div>
+  {% else %}
+    <div id="emptyState">
+      <div class="chart-wrapper">
+        <div class="empty-state">
+          <div class="empty-state-icon">📊</div>
+          <h3>Aguardando dados de pesquisa ou upload</h3>
+          <p>Insira números acima, faça upload de um CSV ou colete respostas via formulário.</p>
+        </div>
+      </div>
+    </div>
+    <div id="statGrid" class="stat-grid" style="display:none"></div>
+    <div class="insight-box" id="insightBox" style="display:none"></div>
+    <div class="chart-grid" id="chartGrid" style="display:none">
+      <div class="chart-wrapper">
+        <div class="chart-title">Distribuição dos Valores</div>
+        <canvas id="barChart"></canvas>
+      </div>
+      <div class="chart-wrapper">
+        <div class="chart-title">Evolução dos Valores</div>
+        <canvas id="lineChart"></canvas>
+      </div>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let barChartInst = null, lineChartInst = null;
+let dadosAtuais = [];
+
+{% if analise %}
+const initialAnalise = {{ analise | tojson }};
+{% else %}
+const initialAnalise = null;
+{% endif %}
+
+function onCsvChange() {
+  const f = document.getElementById('csvInput').files[0];
+  document.getElementById('csvFileName').innerHTML = f ? `<strong>${f.name}</strong>` : 'Clique para selecionar um arquivo <strong>.csv</strong>';
+  document.getElementById('csvBtn').disabled = !f;
+}
+
+async function analisar() {
+  const raw = document.getElementById('numerosInput').value;
+  const nums = raw.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
+  if (!nums.length) { showToast('Insira ao menos um número válido.', 'error'); return; }
+  dadosAtuais = nums;
+  try {
+    const r = await fetch('/analisar', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({numeros: nums}) });
+    const d = await r.json();
+    if (!r.ok) { showToast(d.error, 'error'); return; }
+    showToast('Análise concluída!', 'success');
+    renderStats(d, nums);
+  } catch(e) { showToast('Erro ao analisar.', 'error'); }
+}
+
+async function uploadCSV() {
+  const f = document.getElementById('csvInput').files[0];
+  if (!f) return;
+  const fd = new FormData(); fd.append('arquivo', f);
+  try {
+    const r = await fetch('/upload_csv', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (!r.ok) { showToast(d.error, 'error'); return; }
+    dadosAtuais = [];
+    showToast(`CSV analisado! ${d.count} valores encontrados.`, 'success');
+    renderStats(d, []);
+  } catch(e) { showToast('Erro ao processar CSV.', 'error'); }
+}
+
+function renderStats(a, nums) {
+  const cards = [
+    {label:'Média', val: fmt(a.media), color:'#2563eb', sub:'avg'},
+    {label:'Mediana', val: fmt(a.mediana), color:'#7c3aed', sub:'mid'},
+    {label:'Moda', val: a.moda.length ? a.moda.map(fmt).join(', ') : 'N/A', color:'#0891b2', sub:'freq.'},
+    {label:'Total', val: fmt(a.total), color:'#6366f1', sub:`${a.count} itens`},
+    {label:'Desvio Padrão', val: fmt(a.desvio_padrao), color:'#f59e0b', sub:'σ'},
+    {label:'Mínimo', val: fmt(a.min), color:'#16a34a', sub:'menor'},
+    {label:'Máximo', val: fmt(a.max), color:'#dc2626', sub:'maior'},
+  ];
+
+  const grid = document.getElementById('statGrid');
+  grid.style.display = 'grid';
+  grid.innerHTML = cards.map(c => `
+    <div class="stat-card">
+      <div class="stat-bar" style="background:${c.color}"></div>
+      <div class="stat-label">${c.label}</div>
+      <div class="stat-value" style="font-size:${c.label==='Moda'?'1.2':'1.8'}rem">${c.val}</div>
+      <div class="stat-sub">${c.sub}</div>
+    </div>`).join('');
+
+  // Hide empty state, show charts
+  const empty = document.getElementById('emptyState');
+  if (empty) empty.style.display = 'none';
+
+  const chartGrid = document.getElementById('chartGrid');
+  if (chartGrid) chartGrid.style.display = 'grid';
+
+  // Insight
+  const ib = document.getElementById('insightBox');
+  if (ib) { ib.style.display = 'block'; ib.textContent = generarInsight(a); }
+
+  // Charts
+  const colors = nums.map(v => intensityColor(v, a.min, a.max));
+  renderBarChart(nums, colors, a);
+  renderLineChart(nums, a);
+}
+
+function generarInsight(a) {
+  const cv = a.media ? a.desvio_padrao / a.media : 0;
+  let txt = '';
+  if (cv < 0.1) txt = 'Os dados estão muito concentrados próximos da média.';
+  else if (cv < 0.3) txt = `Dispersão moderada (σ=${a.desvio_padrao}).`;
+  else txt = `Alta variação nos dados (σ=${a.desvio_padrao}).`;
+  if (a.moda.length) txt += ` Valor mais frequente: ${a.moda[0]}.`;
+  return '💡 ' + txt + ` Amplitude: ${(a.max - a.min).toFixed(2)} (de ${a.min} a ${a.max}).`;
+}
+
+function renderBarChart(nums, colors, a) {
+  const ctx = document.getElementById('barChart').getContext('2d');
+  if (barChartInst) barChartInst.destroy();
+  const labels = nums.length ? nums.map((_, i) => `V${i+1}`) : ['Sem dados'];
+  const data = nums.length ? nums : [0];
+  barChartInst = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets: [{ label: 'Valor', data, backgroundColor: nums.length ? colors : ['#e2e8f0'], borderRadius: 6 }] },
+    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true }, x: { grid: { display: false } } } },
+  });
+}
+
+function renderLineChart(nums, a) {
+  const ctx = document.getElementById('lineChart').getContext('2d');
+  if (lineChartInst) lineChartInst.destroy();
+  const labels = nums.length ? nums.map((_, i) => `#${i+1}`) : ['Sem dados'];
+  const data = nums.length ? nums : [0];
+  lineChartInst = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Evolução', data,
+        borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,.1)',
+        borderWidth: 2.5, pointRadius: 4, pointBackgroundColor: '#6366f1',
+        tension: 0.35, fill: true,
+      }]
+    },
+    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } },
+  });
+}
+
+// Init with server-side data if available
+if (initialAnalise) {
+  const grid = document.getElementById('chartGrid');
+  if (grid) grid.style.display = 'grid';
+  const ib = document.getElementById('insightBox');
+  if (ib) { ib.style.display = 'block'; ib.textContent = generarInsight(initialAnalise); }
+  renderBarChart([], [], initialAnalise);
+  renderLineChart([], initialAnalise);
+}
+</script>
+{% endblock %}

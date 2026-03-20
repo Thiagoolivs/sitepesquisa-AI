@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+{% set active_page = "pesquisa" %}
+
+{% block content %}
+<h1 class="page-title">
+  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="12" y2="16"/></svg>
+  Formulário de Pesquisa
+</h1>
+<p class="page-subtitle">Crie formulários, colete respostas e analise os dados estatisticamente.</p>
+
+<div style="max-width:700px;margin:0 auto;">
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('criar')">Criar Formulário</button>
+    <button class="tab-btn" onclick="switchTab('responder')">Responder</button>
+    <button class="tab-btn" onclick="switchTab('resultados')">Resultados</button>
+  </div>
+
+  <!-- ── Tab: Criar ──────────────────────────────────────────────────── -->
+  <div class="tab-pane active" id="tab-criar">
+    <div class="card">
+      <div class="card-body">
+        <div class="form-group">
+          <label class="form-label">Título <span style="color:#dc2626">*</span></label>
+          <input id="fTitulo" class="form-control" type="text" placeholder="Ex: Satisfação dos Clientes — 2025" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Descrição</label>
+          <textarea id="fDescricao" class="form-control" placeholder="Descrição opcional..."></textarea>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;">
+          <label class="form-label" style="margin:0">Perguntas</label>
+          <span class="text-sm text-muted" id="perguntaCount">0 pergunta(s)</span>
+        </div>
+        <div id="perguntasList"></div>
+        <button class="btn btn-outline w-full mt-2" onclick="addPergunta()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Adicionar Pergunta
+        </button>
+        <button class="btn btn-success w-full mt-2" style="margin-top:.75rem" onclick="salvarFormulario()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          Salvar Formulário
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Tab: Responder ─────────────────────────────────────────────── -->
+  <div class="tab-pane" id="tab-responder">
+    <div class="card">
+      <div class="card-body" id="responderContent">
+        <div class="empty-state">
+          <div class="empty-state-icon">📋</div>
+          <h3>Nenhum formulário salvo</h3>
+          <p>Crie e salve um formulário na aba "Criar Formulário" primeiro.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Tab: Resultados ────────────────────────────────────────────── -->
+  <div class="tab-pane" id="tab-resultados">
+    <div id="resultadosContent">
+      <div class="card">
+        <div class="card-body">
+          <div class="empty-state">
+            <div class="empty-state-icon">📊</div>
+            <h3>Nenhum resultado ainda</h3>
+            <p>Envie respostas numéricas no formulário para ver a análise estatística aqui.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let perguntas = [];
+let formSalvo = null;
+let ultimaAnalise = null;
+let totalEnvios = 0;
+let respostas = {};
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach((b, i) => {
+    b.classList.toggle('active', ['criar','responder','resultados'][i] === tab);
+  });
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  if (tab === 'responder') carregarFormulario();
+}
+
+function addPergunta() {
+  const p = { id: crypto.randomUUID(), texto: '', tipo: 'numerica' };
+  perguntas.push(p);
+  renderPerguntas();
+}
+
+function removePergunta(id) {
+  perguntas = perguntas.filter(p => p.id !== id);
+  renderPerguntas();
+}
+
+function renderPerguntas() {
+  document.getElementById('perguntaCount').textContent = `${perguntas.length} pergunta(s)`;
+  document.getElementById('perguntasList').innerHTML = perguntas.map((p, i) => `
+    <div class="question-card">
+      <div class="question-num">${i + 1}.</div>
+      <div class="question-fields">
+        <div class="question-row">
+          <input class="form-control" type="text" placeholder="Texto da pergunta..."
+            value="${escHtml(p.texto)}" oninput="perguntas[${i}].texto = this.value" />
+          <select class="form-control form-select" style="max-width:175px"
+            onchange="perguntas[${i}].tipo = this.value">
+            <option value="numerica" ${p.tipo==='numerica'?'selected':''}>Numérica</option>
+            <option value="texto" ${p.tipo==='texto'?'selected':''}>Texto livre</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn-icon" onclick="removePergunta('${p.id}')" title="Remover">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+      </button>
+    </div>`).join('');
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function salvarFormulario() {
+  const titulo = document.getElementById('fTitulo').value.trim();
+  if (!titulo) { showToast('Título é obrigatório.', 'error'); return; }
+  if (perguntas.some(p => !p.texto.trim())) { showToast('Preencha o texto de todas as perguntas.', 'error'); return; }
+  if (!perguntas.length) { showToast('Adicione ao menos uma pergunta.', 'error'); return; }
+  const body = { titulo, descricao: document.getElementById('fDescricao').value, perguntas };
+  const r = await fetch('/formulario', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  const d = await r.json();
+  if (!r.ok) { showToast(d.error, 'error'); return; }
+  formSalvo = body;
+  showToast('Formulário salvo! Acesse a aba Responder.', 'success');
+  switchTab('responder');
+}
+
+async function carregarFormulario() {
+  const r = await fetch('/formulario');
+  if (!r.ok) { 
+    document.getElementById('responderContent').innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">📋</div>
+        <h3>Nenhum formulário salvo</h3>
+        <p>Crie e salve um formulário na aba "Criar Formulário" primeiro.</p>
+      </div>`;
+    return;
+  }
+  const form = await r.json();
+  formSalvo = form;
+  respostas = {};
+  document.getElementById('responderContent').innerHTML = `
+    <div style="margin-bottom:1rem">
+      <h2 style="font-size:1.2rem;font-weight:800;color:#0f172a">${escHtml(form.titulo)}</h2>
+      ${form.descricao ? `<p class="text-muted text-sm mt-1">${escHtml(form.descricao)}</p>` : ''}
+      <span style="font-size:.8rem;color:#10b981;font-weight:600;display:block;margin-top:.4rem">
+        ${form.total_respostas} envio(s) registrado(s)
+      </span>
+    </div>
+    ${form.perguntas.map((q, i) => `
+      <div class="responder-question">
+        <label>${i+1}. ${escHtml(q.texto)}
+          <span class="tipo-tag">${q.tipo}</span>
+        </label>
+        ${q.tipo === 'numerica'
+          ? `<input class="form-control" type="number" placeholder="0" id="resp_${q.id}" oninput="respostas['${q.id}'] = this.value" />`
+          : `<input class="form-control" type="text" placeholder="Sua resposta..." id="resp_${q.id}" oninput="respostas['${q.id}'] = this.value" />`
+        }
+      </div>`).join('')}
+    <button class="btn btn-primary w-full" onclick="enviarRespostas()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      Enviar Respostas
+    </button>`;
+}
+
+async function enviarRespostas() {
+  if (!formSalvo) return;
+  const payload = formSalvo.perguntas.map(q => ({ pergunta_id: q.id, valor: respostas[q.id] || '' }));
+  const r = await fetch('/formulario/responder', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({respostas: payload}) });
+  const d = await r.json();
+  if (!r.ok) { showToast(d.error, 'error'); return; }
+  showToast(d.mensagem, 'success');
+  totalEnvios++;
+  if (d.analise) {
+    ultimaAnalise = d.analise;
+    renderResultados(d.analise, d.respostas_numericas);
+    switchTab('resultados');
+  }
+}
+
+function renderResultados(a, numCount) {
+  const colors = ['#2563eb','#7c3aed','#0891b2','#6366f1','#f59e0b','#16a34a','#dc2626'];
+  const cards = [
+    {label:'Média', val:fmt(a.media), sub:'avg'},
+    {label:'Mediana', val:fmt(a.mediana), sub:'mid'},
+    {label:'Moda', val:a.moda.length?a.moda.map(fmt).join(', '):'N/A', sub:'freq.'},
+    {label:'Total', val:fmt(a.total), sub:`${a.count} resp.`},
+    {label:'Desvio Padrão', val:fmt(a.desvio_padrao), sub:'σ'},
+    {label:'Mínimo', val:fmt(a.min), sub:'menor'},
+    {label:'Máximo', val:fmt(a.max), sub:'maior'},
+  ];
+  document.getElementById('resultadosContent').innerHTML = `
+    <div class="insight-box" style="margin-bottom:1rem">
+      ✓ Análise de ${totalEnvios} envio(s) · ${numCount} respostas numéricas
+    </div>
+    <div class="stat-grid">
+      ${cards.map((c,i) => `
+        <div class="stat-card">
+          <div class="stat-bar" style="background:${colors[i]}"></div>
+          <div class="stat-label">${c.label}</div>
+          <div class="stat-value" style="font-size:${c.label==='Moda'?'1.2':'1.8'}rem">${c.val}</div>
+          <div class="stat-sub">${c.sub}</div>
+        </div>`).join('')}
+    </div>
+    <div class="insight-box">
+      📊 Dados do formulário disponíveis na página <a href="/ia" style="color:#166534;font-weight:700">IA</a> e no <a href="/" style="color:#166534;font-weight:700">Dashboard</a>.
+    </div>`;
+}
+
+// Init: add one question
+addPergunta();
+
+// Load existing form data if any
+{% if formulario %}
+formSalvo = {{ formulario | tojson }};
+{% endif %}
+</script>
+{% endblock %}

@@ -1,0 +1,255 @@
+import os
+import math
+from collections import Counter
+from flask import Flask, render_template, request, jsonify
+
+app = Flask(__name__)
+
+# ── Armazenamento em memória ──────────────────────────────────────────────
+formulario_salvo = None
+respostas_armazenadas = []  # Suporta +150 respostas
+ultimo_analise = None
+
+
+# ── Funções estatísticas ──────────────────────────────────────────────────
+
+def calcular_estatisticas(numeros):
+    if not numeros:
+        return None
+    n = len(numeros)
+    total = sum(numeros)
+    media = total / n
+    s = sorted(numeros)
+    mid = n // 2
+    mediana = s[mid] if n % 2 else (s[mid - 1] + s[mid]) / 2
+    freq = Counter(numeros)
+    max_freq = max(freq.values())
+    moda = [] if max_freq == 1 else [k for k, v in freq.items() if v == max_freq]
+    variancia = sum((x - media) ** 2 for x in numeros) / n
+    desvio_padrao = math.sqrt(variancia)
+    return {
+        "media": round(media, 2),
+        "mediana": round(mediana, 2),
+        "moda": sorted(moda),
+        "total": round(total, 2),
+        "count": n,
+        "min": min(numeros),
+        "max": max(numeros),
+        "desvio_padrao": round(desvio_padrao, 2),
+    }
+
+
+def parse_csv_numeros(content):
+    numeros = []
+    for line in content.splitlines():
+        for cell in line.split(","):
+            try:
+                n = float(cell.strip())
+                if not math.isnan(n):
+                    numeros.append(n)
+            except Exception:
+                pass
+    return numeros
+
+
+def gerar_insight(stats):
+    cv = stats["desvio_padrao"] / stats["media"] if stats["media"] != 0 else 0
+    partes = []
+    if cv < 0.1:
+        partes.append("Os dados estão muito concentrados próximos da média.")
+    elif cv < 0.3:
+        partes.append(f"Os dados apresentam dispersão moderada (desvio padrão: {stats['desvio_padrao']}).")
+    else:
+        partes.append(f"Há alta variação nos valores (desvio padrão: {stats['desvio_padrao']}).")
+    if stats["moda"]:
+        partes.append(f"O valor mais frequente é {stats['moda'][0]}.")
+    amp = round(stats["max"] - stats["min"], 2)
+    partes.append(f"A amplitude é {amp} (de {stats['min']} a {stats['max']}).")
+    if stats["media"] > stats["mediana"]:
+        partes.append("A distribuição é assimétrica à direita — poucos valores altos puxam a média.")
+    elif stats["media"] < stats["mediana"]:
+        partes.append("A distribuição é assimétrica à esquerda — poucos valores baixos puxam a média.")
+    else:
+        partes.append("A distribuição é aproximadamente simétrica.")
+    return " ".join(partes)
+
+
+def groq_analise(prompt):
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key:
+        return None
+    try:
+        from groq import Groq
+        client = Groq(api_key=api_key)
+        response = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "Você é um assistente de análise de dados estatísticos. "
+                        "Responda sempre em português, de forma clara e objetiva."
+                    ),
+                },
+                {"role": "user", "content": prompt},
+            ],
+            max_tokens=600,
+        )
+        return response.choices[0].message.content
+    except Exception:
+        return None
+
+
+# ── Páginas HTML ──────────────────────────────────────────────────────────
+
+@app.route("/")
+def dashboard():
+    return render_template("dashboard.html", analise=ultimo_analise)
+
+
+@app.route("/pesquisa")
+def pesquisa():
+    return render_template(
+        "pesquisa.html",
+        formulario=formulario_salvo,
+        total_respostas=len(respostas_armazenadas),
+    )
+
+
+@app.route("/ia")
+def ia_page():
+    return render_template("ia.html", analise=ultimo_analise)
+
+
+# ── Rotas de API ──────────────────────────────────────────────────────────
+
+@app.route("/analisar", methods=["POST"])
+def analisar():
+    global ultimo_analise
+    data = request.get_json() or {}
+    numeros = data.get("numeros", [])
+    if not numeros:
+        return jsonify({"error": "Lista de números vazia."}), 400
+    stats = calcular_estatisticas([float(x) for x in numeros])
+    ultimo_analise = stats
+    return jsonify(stats)
+
+
+@app.route("/upload_csv", methods=["POST"])
+def upload_csv():
+    global ultimo_analise
+    if "arquivo" not in request.files:
+        return jsonify({"error": "Nenhum arquivo enviado. Use o campo 'arquivo'."}), 400
+    content = request.files["arquivo"].read().decode("utf-8", errors="ignore")
+    numeros = parse_csv_numeros(content)
+    if not numeros:
+        return jsonify({"error": "Nenhum valor numérico encontrado no CSV."}), 400
+    stats = calcular_estatisticas(numeros)
+    ultimo_analise = stats
+    return jsonify(stats)
+
+
+@app.route("/formulario", methods=["GET"])
+def get_formulario():
+    if not formulario_salvo:
+        return jsonify({"error": "Nenhum formulário salvo ainda."}), 404
+    return jsonify({**formulario_salvo, "total_respostas": len(respostas_armazenadas)})
+
+
+@app.route("/formulario", methods=["POST"])
+def salvar_formulario():
+    global formulario_salvo, respostas_armazenadas
+    formulario_salvo = request.get_json() or {}
+    respostas_armazenadas = []
+    return jsonify({"mensagem": "Formulário salvo!", "formulario": formulario_salvo})
+
+
+@app.route("/formulario/responder", methods=["POST"])
+def responder_formulario():
+    global respostas_armazenadas, ultimo_analise
+    data = request.get_json() or {}
+    respostas_armazenadas.append(data.get("respostas", []))
+
+    numeros = []
+    for sub in respostas_armazenadas:
+        for r in sub:
+            try:
+                numeros.append(float(r["valor"]))
+            except Exception:
+                pass
+
+    analise = None
+    if numeros:
+        analise = calcular_estatisticas(numeros)
+        ultimo_analise = analise
+
+    return jsonify(
+        {
+            "mensagem": f"Resposta registrada! Total: {len(respostas_armazenadas)} envio(s).",
+            "respostas_numericas": len(numeros),
+            "analise": analise,
+        }
+    )
+
+
+@app.route("/ia", methods=["POST"])
+def ia_api():
+    data = request.get_json() or {}
+    pergunta = data.get("pergunta", "").strip()
+    dados = data.get("dados") or ultimo_analise
+
+    if not pergunta:
+        return jsonify({"error": "Nenhuma pergunta enviada."}), 400
+
+    contexto = ""
+    if dados:
+        contexto = (
+            f"Dados estatísticos:\n"
+            f"- Média: {dados['media']}\n"
+            f"- Mediana: {dados['mediana']}\n"
+            f"- Desvio padrão: {dados['desvio_padrao']}\n"
+            f"- Mínimo: {dados['min']}\n"
+            f"- Máximo: {dados['max']}\n"
+            f"- Total de valores: {dados['count']}\n"
+            f"- Moda: {dados['moda'] if dados['moda'] else 'sem moda definida'}\n\n"
+        )
+
+    prompt = f"{contexto}Pergunta: {pergunta}\n\nResponda em português de forma clara."
+    resposta = groq_analise(prompt)
+    if not resposta and dados:
+        resposta = gerar_insight(dados)
+    elif not resposta:
+        resposta = "Nenhum dado disponível para análise. Carregue números ou um CSV primeiro."
+
+    return jsonify({"resposta": resposta})
+
+
+@app.route("/ia_csv", methods=["POST"])
+def ia_csv():
+    global ultimo_analise
+    if "arquivo" not in request.files:
+        return jsonify({"error": "Nenhum arquivo enviado."}), 400
+    content = request.files["arquivo"].read().decode("utf-8", errors="ignore")
+    numeros = parse_csv_numeros(content)
+    if not numeros:
+        return jsonify({"error": "Nenhum valor numérico encontrado no CSV."}), 400
+
+    stats = calcular_estatisticas(numeros)
+    ultimo_analise = stats
+
+    prompt = (
+        f"Analise os seguintes dados extraídos de um arquivo CSV:\n"
+        f"Média: {stats['media']}, Mediana: {stats['mediana']}, "
+        f"Desvio padrão: {stats['desvio_padrao']}, "
+        f"Mínimo: {stats['min']}, Máximo: {stats['max']}, "
+        f"Total de valores: {stats['count']}.\n\n"
+        "Explique em português os padrões e possíveis conclusões."
+    )
+    insight = groq_analise(prompt) or gerar_insight(stats)
+
+    return jsonify({**stats, "insight": insight})
+
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=False)

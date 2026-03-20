@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% set active_page = "ia" %}
+
+{% block content %}
+<div style="max-width:720px;margin:0 auto;text-align:center;padding-top:1rem;">
+  <div style="display:inline-flex;align-items:center;justify-content:center;padding:.75rem;background:#eef2ff;border:1px solid #c7d2fe;border-radius:1.25rem;margin-bottom:1.25rem;">
+    <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2">
+      <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+    </svg>
+  </div>
+  <h1 style="font-size:2.1rem;font-weight:800;color:#0f172a;margin-bottom:.5rem">Análise com Inteligência Artificial</h1>
+  <p style="color:#64748b;font-size:1rem;margin-bottom:1.75rem">Use dados analisados e faça perguntas — a IA responde em português.</p>
+</div>
+
+<div style="max-width:720px;margin:0 auto;">
+
+  <!-- Dados disponíveis -->
+  {% if analise %}
+  <div class="insight-box" style="margin-bottom:1.25rem;display:flex;align-items:center;gap:.5rem">
+    <span>✓</span>
+    <span>Dados carregados: <strong>{{ analise.count }} valores</strong> · média: {{ analise.media }} · desvio: {{ analise.desvio_padrao }}</span>
+  </div>
+  {% endif %}
+
+  <!-- Input manual de dados -->
+  <div class="upload-section" style="margin-bottom:1.25rem">
+    <div class="section-header">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12" y2="16"/></svg>
+      {{ "Ou inserir novos dados manualmente" if analise else "Carregar dados numéricos (opcional)" }}
+    </div>
+    <div style="display:flex;gap:.5rem">
+      <input id="dadosInput" class="form-control" type="text" placeholder="Ex: 10, 25, 50, 30, 75..." />
+      <button class="btn btn-primary btn-sm" onclick="carregarDados()" style="white-space:nowrap">Carregar</button>
+    </div>
+    <p id="dadosStatus" class="text-sm text-muted mt-1" style="display:none"></p>
+  </div>
+
+  <!-- Upload CSV para IA -->
+  <div class="upload-section" style="margin-bottom:1.25rem">
+    <div class="section-header">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      Analisar CSV com IA
+    </div>
+    <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
+      <label class="upload-area" style="flex:1">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <span class="upload-area-label" id="iaCsvName">Selecionar arquivo <strong>.csv</strong></span>
+        <input type="file" id="iaCsvInput" accept=".csv" onchange="document.getElementById('iaCsvName').innerHTML='<strong>'+this.files[0].name+'</strong>'; document.getElementById('iaCsvBtn').disabled=false" />
+      </label>
+      <button class="btn btn-success btn-sm" id="iaCsvBtn" disabled onclick="analisarCsvIA()" style="white-space:nowrap">Analisar CSV</button>
+    </div>
+  </div>
+
+  <!-- Chat -->
+  <div class="ia-card" style="margin-bottom:1.5rem">
+    <textarea class="ia-textarea" id="perguntaInput" placeholder="Ex: O que os dados indicam? Há tendência? O desvio padrão é preocupante?"></textarea>
+    <div class="ia-footer">
+      <span class="ia-powered">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="3"/><path d="M8 10h8M8 14h5"/></svg>
+        Powered by Groq · Llama 3.1
+      </span>
+      <button class="btn btn-indigo" onclick="gerarAnalise()" id="gerarBtn">
+        Gerar Análise
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div id="iaAnswer" style="display:none" class="ia-answer">
+    <div class="ia-answer-header">
+      <div class="ia-answer-icon">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+      </div>
+      <div class="ia-answer-title">Análise da Pesquisa AI</div>
+    </div>
+    <div class="ia-answer-text" id="iaAnswerText"></div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+{% if analise %}
+let dadosAtuais = {{ analise | tojson }};
+{% else %}
+let dadosAtuais = null;
+{% endif %}
+
+async function carregarDados() {
+  const raw = document.getElementById('dadosInput').value;
+  const nums = raw.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
+  if (!nums.length) { showToast('Insira números válidos.', 'error'); return; }
+  const r = await fetch('/analisar', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({numeros:nums}) });
+  const d = await r.json();
+  if (!r.ok) { showToast(d.error,'error'); return; }
+  dadosAtuais = d;
+  const st = document.getElementById('dadosStatus');
+  st.style.display = 'block';
+  st.textContent = `✓ ${d.count} valores — média: ${d.media}, desvio: ${d.desvio_padrao}`;
+  st.style.color = '#166534';
+  showToast('Dados carregados!', 'success');
+}
+
+async function gerarAnalise() {
+  const pergunta = document.getElementById('perguntaInput').value.trim();
+  if (!pergunta) { showToast('Digite uma pergunta.', 'error'); return; }
+  const btn = document.getElementById('gerarBtn');
+  btn.disabled = true; btn.textContent = 'Gerando...';
+  try {
+    const r = await fetch('/ia', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ pergunta, dados: dadosAtuais })
+    });
+    const d = await r.json();
+    if (!r.ok) { showToast(d.error||'Erro na IA','error'); return; }
+    document.getElementById('iaAnswer').style.display = 'block';
+    document.getElementById('iaAnswerText').textContent = d.resposta;
+  } catch(e) { showToast('Erro ao conectar com a IA.','error'); }
+  finally { btn.disabled=false; btn.innerHTML='Gerar Análise <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>'; }
+}
+
+async function analisarCsvIA() {
+  const f = document.getElementById('iaCsvInput').files[0];
+  if (!f) return;
+  const fd = new FormData(); fd.append('arquivo', f);
+  const btn = document.getElementById('iaCsvBtn');
+  btn.disabled = true; btn.textContent = 'Analisando...';
+  try {
+    const r = await fetch('/ia_csv', { method:'POST', body:fd });
+    const d = await r.json();
+    if (!r.ok) { showToast(d.error,'error'); return; }
+    dadosAtuais = d;
+    document.getElementById('iaAnswer').style.display = 'block';
+    document.getElementById('iaAnswerText').textContent = d.insight;
+    showToast(`Arquivo analisado! ${d.count} valores encontrados.`, 'success');
+  } catch(e) { showToast('Erro ao processar CSV.','error'); }
+  finally { btn.disabled=false; btn.textContent='Analisar CSV'; }
+}
+
+document.getElementById('perguntaInput').addEventListener('keydown', e => {
+  if (e.ctrlKey && e.key === 'Enter') gerarAnalise();
+});
+</script>
+{% endblock %}
