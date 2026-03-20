@@ -6,6 +6,7 @@ urlpatterns = [
     path('pesquisa', views.pesquisa, name='pesquisa'),
     path('ia', views.ia_page, name='ia'),
     path('analisar', views.analisar, name='analisar'),
+    path('analisar_dados', views.analisar_dados, name='analisar_dados'),
     path('upload_csv', views.upload_csv, name='upload_csv'),
     path('formulario', views.formulario_api, name='formulario'),
     path('formulario/responder', views.formulario_responder, name='formulario_responder'),

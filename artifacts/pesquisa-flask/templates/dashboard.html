@@ -6,14 +6,61 @@
   <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2.5"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
   Dashboard de Análise
 </h1>
-<p class="page-subtitle">Insira números, faça upload de CSV ou colete dados de formulários para visualizar as estatísticas.</p>
+<p class="page-subtitle">Insira dados de qualquer tipo, faça upload de CSV ou use respostas de formulários para gerar visualizações completas.</p>
 
-<div class="input-row" style="margin-bottom:.75rem">
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-  <input id="numerosInput" type="text" placeholder="Ex: 10, 25, 50, 30, 75, 20, 60" />
-  <button class="btn btn-primary" onclick="analisarNums()">Analisar</button>
+<!-- ── PAINEL DE ANÁLISE MANUAL ─────────────────────────────────────── -->
+<div class="analise-panel">
+  <div class="analise-panel-header">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+    <span>Análise Manual de Dados</span>
+  </div>
+
+  <!-- tipo selector -->
+  <div class="tipo-selector">
+    <button class="tipo-btn active" data-tipo="numerico" onclick="setTipo('numerico')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+      Numérico
+    </button>
+    <button class="tipo-btn" data-tipo="categorico" onclick="setTipo('categorico')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+      Categórico
+    </button>
+    <button class="tipo-btn" data-tipo="data" onclick="setTipo('data')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      Datas
+    </button>
+  </div>
+
+  <!-- hint texts -->
+  <div id="hint-numerico" class="tipo-hint hint-active">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    Insira números separados por vírgula, espaço ou em linhas diferentes. Ex: <code>10, 25.5, 30, 42, 18</code>
+  </div>
+  <div id="hint-categorico" class="tipo-hint" style="display:none">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    Insira nomes, rótulos ou categorias separados por vírgula ou em linhas. Ex: <code>São Paulo, Rio de Janeiro, São Paulo, Minas</code>
+  </div>
+  <div id="hint-data" class="tipo-hint" style="display:none">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#0891b2" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    Insira datas no formato <code>DD/MM/AAAA</code> ou <code>AAAA-MM-DD</code>, separadas por vírgula ou em linhas.
+  </div>
+
+  <!-- textarea de entrada -->
+  <textarea id="dadosInput" class="dados-textarea" placeholder="Cole ou digite seus dados aqui…" rows="4"></textarea>
+
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem">
+    <span id="contadorDados" class="contador-dados">0 itens detectados</span>
+    <div style="display:flex;gap:.5rem">
+      <button class="btn btn-outline btn-sm" onclick="limparDados()">Limpar</button>
+      <button class="btn btn-primary" onclick="analisarDados()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Analisar
+      </button>
+    </div>
+  </div>
 </div>
 
+<!-- ── UPLOAD CSV ──────────────────────────────────────────────────────── -->
 <div class="upload-section">
   <div class="section-header">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
@@ -31,18 +78,17 @@
 </div>
 
 {% if perguntas_numericas %}
+<!-- ── FILTRO FORMULÁRIO ────────────────────────────────────────────── -->
 <div class="upload-section" style="margin-bottom:1.5rem">
   <div class="section-header">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
     Filtrar por pergunta do formulário
   </div>
   <div class="filter-row">
-    <label for="perguntaSelect">Pergunta (cards + barras):</label>
+    <label for="perguntaSelect">Pergunta:</label>
     <select id="perguntaSelect" onchange="carregarDadosPergunta()">
       {% for p in perguntas_numericas %}
-      <option value="{{ p.id }}" {% if p.id == pergunta_principal_id %}selected{% endif %}>
-        {{ p.texto }}{% if p.principal %} ★{% endif %}
-      </option>
+      <option value="{{ p.id }}" {% if p.id == pergunta_principal_id %}selected{% endif %}>{{ p.texto }}{% if p.principal %} ★{% endif %}</option>
       {% endfor %}
     </select>
     <button class="btn btn-outline btn-sm" onclick="carregarDadosPergunta()">Atualizar</button>
@@ -51,100 +97,128 @@
 </div>
 {% endif %}
 
+<!-- ── EMPTY STATE ─────────────────────────────────────────────────── -->
 <div id="emptyState" {% if analise %}style="display:none"{% endif %}>
   <div class="chart-wrapper">
     <div class="empty-state">
       <div class="empty-state-icon">📊</div>
-      <h3>Aguardando dados de pesquisa ou upload</h3>
-      <p>Insira números, carregue um CSV ou colete respostas de formulários para visualizar as estatísticas e gráficos.</p>
+      <h3>Aguardando dados</h3>
+      <p>Insira dados no painel acima, faça upload de CSV ou colete respostas de formulários.</p>
     </div>
   </div>
 </div>
 
-<div id="statGrid" class="stat-grid" {% if not analise %}style="display:none"{% endif %}>
-{% if analise %}
-  <div class="stat-card">
-    <div class="stat-bar" style="background:#2563eb"></div>
-    <div class="stat-label">Média</div>
-    <div class="stat-value">{{ analise.media }}</div>
-    <div class="stat-sub">avg</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-bar" style="background:#7c3aed"></div>
-    <div class="stat-label">Mediana</div>
-    <div class="stat-value">{{ analise.mediana }}</div>
-    <div class="stat-sub">mid</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-bar" style="background:#0891b2"></div>
-    <div class="stat-label">Moda</div>
-    <div class="stat-value" style="font-size:1.15rem">{% if analise.moda %}{{ analise.moda|join:", " }}{% else %}N/A{% endif %}</div>
-    <div class="stat-sub">freq.</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-bar" style="background:#6366f1"></div>
-    <div class="stat-label">Total</div>
-    <div class="stat-value">{{ analise.total }}</div>
-    <div class="stat-sub">{{ analise.count }} itens</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-bar" style="background:#f59e0b"></div>
-    <div class="stat-label">Desvio Padrão</div>
-    <div class="stat-value">{{ analise.desvio_padrao }}</div>
-    <div class="stat-sub">σ</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-bar" style="background:#16a34a"></div>
-    <div class="stat-label">Mínimo</div>
-    <div class="stat-value">{{ analise.min }}</div>
-    <div class="stat-sub">menor</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-bar" style="background:#dc2626"></div>
-    <div class="stat-label">Máximo</div>
-    <div class="stat-value">{{ analise.max }}</div>
-    <div class="stat-sub">maior</div>
-  </div>
-{% endif %}
+<!-- ── RESULTADO: TIPO BADGE ──────────────────────────────────────── -->
+<div id="tipoBadgeRow" style="display:none;margin-bottom:1rem">
+  <span id="tipoBadge" class="tipo-result-badge"></span>
+  <span id="totalBadge" class="quality-badge" style="margin-left:.5rem"></span>
 </div>
 
-<div id="qualityIndicator" class="quality-indicator" {% if not analise %}style="display:none"{% endif %}>
-  <span id="qualityText"></span>
+<!-- ── RESULTADO: NUMÉRICO ──────────────────────────────────────── -->
+<div id="resultNumerico" style="display:none">
+  <div id="statGrid" class="stat-grid">{% if analise %}
+    <div class="stat-card"><div class="stat-bar" style="background:#2563eb"></div><div class="stat-label">Média</div><div class="stat-value">{{ analise.media }}</div><div class="stat-sub">avg</div></div>
+    <div class="stat-card"><div class="stat-bar" style="background:#7c3aed"></div><div class="stat-label">Mediana</div><div class="stat-value">{{ analise.mediana }}</div><div class="stat-sub">mid</div></div>
+    <div class="stat-card"><div class="stat-bar" style="background:#0891b2"></div><div class="stat-label">Moda</div><div class="stat-value" style="font-size:1.15rem">{% if analise.moda %}{{ analise.moda|join:", " }}{% else %}N/A{% endif %}</div><div class="stat-sub">freq.</div></div>
+    <div class="stat-card"><div class="stat-bar" style="background:#6366f1"></div><div class="stat-label">Total</div><div class="stat-value">{{ analise.total }}</div><div class="stat-sub">{{ analise.count }} itens</div></div>
+    <div class="stat-card"><div class="stat-bar" style="background:#f59e0b"></div><div class="stat-label">Desvio Padrão</div><div class="stat-value">{{ analise.desvio_padrao }}</div><div class="stat-sub">σ</div></div>
+    <div class="stat-card"><div class="stat-bar" style="background:#16a34a"></div><div class="stat-label">Mínimo</div><div class="stat-value">{{ analise.min }}</div><div class="stat-sub">menor</div></div>
+    <div class="stat-card"><div class="stat-bar" style="background:#dc2626"></div><div class="stat-label">Máximo</div><div class="stat-value">{{ analise.max }}</div><div class="stat-sub">maior</div></div>
+  {% endif %}</div>
+  <div id="qualityIndicator" class="quality-indicator" {% if not analise %}style="display:none"{% endif %}><span id="qualityText"></span></div>
+  <div id="insightBox" class="insight-box" {% if not analise %}style="display:none"{% endif %}>{% if analise and analise.insight %}💡 {{ analise.insight }}{% endif %}</div>
+  <div id="chartGrid" class="chart-grid">
+    <div class="chart-wrapper">
+      <div class="chart-title">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2"><rect x="2" y="3" width="4" height="18" rx="1"/><rect x="10" y="8" width="4" height="13" rx="1"/><rect x="18" y="5" width="4" height="16" rx="1"/></svg>
+        <span id="barChartTitle">Distribuição das Respostas</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:1rem;font-size:.75rem;color:#94a3b8;margin-bottom:.75rem"><span>🟢 Baixo</span><span>🟡 Médio</span><span>🔴 Alto</span></div>
+      <canvas id="barChart"></canvas>
+    </div>
+    <div class="chart-wrapper">
+      <div class="chart-title">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        <span id="lineChartTitle">Evolução dos Valores</span>
+        <span class="principal-badge" id="principalBadge" style="display:none">★ Principal</span>
+      </div>
+      <canvas id="lineChart"></canvas>
+      <div id="lineEmpty" class="chart-empty-msg" style="display:none">Sem dados suficientes para a evolução.</div>
+    </div>
+  </div>
 </div>
 
-<div id="insightBox" class="insight-box" {% if not analise %}style="display:none"{% endif %}>
-  {% if analise and analise.insight %}💡 {{ analise.insight }}{% endif %}
+<!-- ── RESULTADO: CATEGÓRICO ──────────────────────────────────────── -->
+<div id="resultCategorico" style="display:none">
+  <div id="catStatGrid" class="stat-grid"></div>
+  <div id="catInsightBox" class="insight-box"></div>
+  <div class="chart-grid">
+    <div class="chart-wrapper" style="grid-column:1/-1">
+      <div class="chart-title">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2"><rect x="2" y="3" width="4" height="18" rx="1"/><rect x="10" y="8" width="4" height="13" rx="1"/><rect x="18" y="5" width="4" height="16" rx="1"/></svg>
+        Frequência por Categoria (top 20)
+      </div>
+      <canvas id="catBarChart" style="max-height:300px"></canvas>
+    </div>
+  </div>
+  <div class="chart-grid" style="margin-top:1rem">
+    <div class="chart-wrapper">
+      <div class="chart-title">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 010 20"/><path d="M12 12L5.5 5.5"/></svg>
+        Distribuição — Top 6
+      </div>
+      <canvas id="catDoughnutChart" style="max-height:260px"></canvas>
+    </div>
+    <div class="chart-wrapper" style="display:flex;flex-direction:column;justify-content:center">
+      <div class="chart-title" style="margin-bottom:1rem">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+        Ranking completo
+      </div>
+      <div id="catRankingList" style="max-height:220px;overflow-y:auto"></div>
+    </div>
+  </div>
 </div>
 
-<div id="chartGrid" class="chart-grid" {% if not analise %}style="display:none"{% endif %}>
-  <div class="chart-wrapper">
-    <div class="chart-title">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2"><rect x="2" y="3" width="4" height="18" rx="1"/><rect x="10" y="8" width="4" height="13" rx="1"/><rect x="18" y="5" width="4" height="16" rx="1"/></svg>
-      <span id="barChartTitle">Distribuição das Respostas</span>
+<!-- ── RESULTADO: DATAS ────────────────────────────────────────────── -->
+<div id="resultDatas" style="display:none">
+  <div id="dateStatGrid" class="stat-grid"></div>
+  <div id="dateInsightBox" class="insight-box"></div>
+  <div class="chart-grid">
+    <div class="chart-wrapper" style="grid-column:1/-1">
+      <div class="chart-title">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        Distribuição por Mês
+      </div>
+      <canvas id="dateMesChart" style="max-height:260px"></canvas>
     </div>
-    <div style="display:flex;align-items:center;gap:1rem;font-size:.75rem;color:#94a3b8;margin-bottom:.75rem">
-      <span>🟢 Baixo</span><span>🟡 Médio</span><span>🔴 Alto</span>
-    </div>
-    <canvas id="barChart"></canvas>
   </div>
-  <div class="chart-wrapper">
-    <div class="chart-title">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-      <span id="lineChartTitle">Evolução da Pergunta Principal</span>
-      <span class="principal-badge" id="principalBadge" style="display:none">★ Principal</span>
+  <div class="chart-grid" style="margin-top:1rem">
+    <div class="chart-wrapper">
+      <div class="chart-title">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Por Dia da Semana
+      </div>
+      <canvas id="dateDiaChart" style="max-height:240px"></canvas>
     </div>
-    <canvas id="lineChart"></canvas>
-    <div id="lineEmpty" class="chart-empty-msg" style="display:none">
-      Sem respostas da pergunta principal ainda.
+    <div class="chart-wrapper">
+      <div class="chart-title">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Por Ano
+      </div>
+      <canvas id="dateAnoChart" style="max-height:240px"></canvas>
     </div>
   </div>
 </div>
+
 {% endblock %}
 
 {% block scripts %}
 <script>
+// ── Estado global ─────────────────────────────────────────────────────────
+let tipoAtual = 'numerico';
 let barChartInst = null, lineChartInst = null;
-let modoAtual = null;
+let catBarInst = null, catDoughnutInst = null;
+let dateMesInst = null, dateDiaInst = null, dateAnoInst = null;
 
 {% if analise %}
 const serverAnalise = {{ analise|tojson }};
@@ -160,6 +234,63 @@ const temFormulario = false;
 const perguntaPrincipalId = null;
 {% endif %}
 
+// ── Tipo selector ─────────────────────────────────────────────────────────
+function setTipo(tipo) {
+  tipoAtual = tipo;
+  document.querySelectorAll('.tipo-btn').forEach(function(b) {
+    b.classList.toggle('active', b.dataset.tipo === tipo);
+  });
+  document.querySelectorAll('.tipo-hint').forEach(function(h) { h.style.display = 'none'; });
+  document.getElementById('hint-' + tipo).style.display = 'flex';
+
+  const hints = {
+    numerico:   'Ex: 10, 25.5, 30, 42, 18\nOu cole uma coluna de números…',
+    categorico: 'Ex: São Paulo, Rio de Janeiro, São Paulo, Minas\nOu cole uma lista de nomes/rótulos…',
+    data:       'Ex: 01/01/2024, 15/03/2024, 2024-07-20\nOu cole uma coluna de datas…',
+  };
+  document.getElementById('dadosInput').placeholder = hints[tipo] || '';
+  atualizarContador();
+}
+
+// ── Contador de itens ─────────────────────────────────────────────────────
+document.getElementById('dadosInput').addEventListener('input', atualizarContador);
+function atualizarContador() {
+  const itens = parseDados();
+  const el = document.getElementById('contadorDados');
+  el.textContent = itens.length + ' item' + (itens.length !== 1 ? 's' : '') + ' detectado' + (itens.length !== 1 ? 's' : '');
+  el.style.color = itens.length > 0 ? '#16a34a' : '#94a3b8';
+}
+
+function parseDados() {
+  const raw = document.getElementById('dadosInput').value.trim();
+  if (!raw) return [];
+  // Split por vírgula, ponto-e-vírgula ou quebra de linha
+  return raw.split(/[\n,;]+/).map(function(s) { return s.trim(); }).filter(Boolean);
+}
+
+function limparDados() {
+  document.getElementById('dadosInput').value = '';
+  atualizarContador();
+}
+
+// ── Analisar dados ─────────────────────────────────────────────────────────
+async function analisarDados() {
+  const dados = parseDados();
+  if (!dados.length) { showToast('Insira ao menos um valor.', 'error'); return; }
+  try {
+    const r = await fetch('/analisar_dados', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({tipo: tipoAtual, dados: dados})
+    });
+    const d = await r.json();
+    if (!r.ok) { showToast(d.error || 'Erro na análise.', 'error'); return; }
+    showToast('Análise concluída! ' + (d.total || d.count) + ' itens processados.', 'success');
+    renderResultado(d);
+  } catch(e) { showToast('Erro ao processar os dados.', 'error'); }
+}
+
+// ── CSV ────────────────────────────────────────────────────────────────────
 function csvChanged() {
   const f = document.getElementById('csvInput').files[0];
   document.getElementById('csvLabel').innerHTML = f
@@ -168,39 +299,21 @@ function csvChanged() {
   document.getElementById('csvBtn').disabled = !f;
 }
 
-async function analisarNums() {
-  const raw = document.getElementById('numerosInput').value;
-  const nums = raw.split(',').map(function(s){ return parseFloat(s.trim()); }).filter(function(n){ return !isNaN(n); });
-  if (!nums.length) { showToast('Insira ao menos um número válido.', 'error'); return; }
-  try {
-    const r = await fetch('/analisar', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({numeros: nums})
-    });
-    const d = await r.json();
-    if (!r.ok) { showToast(d.error, 'error'); return; }
-    showToast('Análise concluída!', 'success');
-    modoAtual = 'manual';
-    renderDashboard(d, nums, nums);
-  } catch(e) { showToast('Erro ao analisar.', 'error'); }
-}
-
 async function uploadCSV() {
   const f = document.getElementById('csvInput').files[0];
   if (!f) return;
-  if (f.size === 0) { showToast('Arquivo CSV está vazio.', 'error'); return; }
   const fd = new FormData(); fd.append('arquivo', f);
   try {
     const r = await fetch('/upload_csv', {method: 'POST', body: fd});
     const d = await r.json();
     if (!r.ok) { showToast(d.error, 'error'); return; }
-    showToast('Arquivo analisado! ' + d.count + ' valores encontrados.', 'success');
-    modoAtual = 'csv';
-    renderDashboard(d, d.valores || [], d.valores || []);
+    showToast('CSV analisado! ' + d.count + ' valores encontrados.', 'success');
+    d.tipo = 'numerico';
+    renderResultado(d);
   } catch(e) { showToast('Erro ao processar CSV.', 'error'); }
 }
 
+// ── Formulário ─────────────────────────────────────────────────────────────
 async function carregarDadosPergunta() {
   const sel = document.getElementById('perguntaSelect');
   if (!sel) return;
@@ -212,27 +325,15 @@ async function carregarDadosPergunta() {
     const badge = document.getElementById('qualityBadge');
     if (badge && d.total_respostas > 0) {
       badge.style.display = 'inline-flex';
-      badge.textContent = '✓ ' + d.respostas_validas + ' resposta(s) válida(s) de ' + d.total_respostas + ' total (' + d.percentual_validas + '%)';
+      badge.textContent = '✓ ' + d.respostas_validas + ' de ' + d.total_respostas + ' respostas (' + d.percentual_validas + '%)';
     }
     if (d.stats) {
-      modoAtual = 'formulario';
-      renderCards(d.stats);
-      renderInsight(d.stats);
-      renderQuality(d.respostas_validas, d.total_respostas, d.percentual_validas);
-      renderBar(d.valores || [], d.stats);
-      const sel2 = document.getElementById('perguntaSelect');
-      if (sel2) {
-        const txt = sel2.options[sel2.selectedIndex] ? sel2.options[sel2.selectedIndex].text.replace(' ★','') : 'Pergunta';
-        document.getElementById('barChartTitle').textContent = 'Distribuição — ' + txt;
-      }
-      document.getElementById('emptyState').style.display = 'none';
-      document.getElementById('statGrid').style.display = 'grid';
-      document.getElementById('insightBox').style.display = 'block';
-      document.getElementById('chartGrid').style.display = 'grid';
-      document.getElementById('qualityIndicator').style.display = 'block';
+      const resultado = Object.assign({}, d.stats, {tipo: 'numerico', valores: d.valores || []});
+      resultado.label = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text.replace(' ★','') : 'Pergunta';
+      renderResultado(resultado);
       await carregarLinhaPrincipal();
     } else {
-      showToast('Nenhum valor numérico registrado ainda para essa pergunta.', 'error');
+      showToast('Nenhum valor numérico registrado para essa pergunta.', 'error');
     }
   } catch(e) { showToast('Erro ao carregar dados do formulário.', 'error'); }
 }
@@ -242,12 +343,10 @@ async function carregarLinhaPrincipal() {
   try {
     const r = await fetch('/formulario/dados?pergunta_id=' + perguntaPrincipalId);
     const d = await r.json();
-    if (!r.ok) return;
+    if (!r.ok || !d.stats) return;
     document.getElementById('principalBadge').style.display = 'inline-flex';
-    if (d.pergunta) {
-      document.getElementById('lineChartTitle').textContent = 'Evolução — ' + d.pergunta.texto;
-    }
-    if (d.stats && d.valores && d.valores.length > 0) {
+    if (d.pergunta) document.getElementById('lineChartTitle').textContent = 'Evolução — ' + d.pergunta.texto;
+    if (d.valores && d.valores.length > 0) {
       document.getElementById('lineEmpty').style.display = 'none';
       renderLine(d.valores, d.stats);
     } else {
@@ -257,106 +356,250 @@ async function carregarLinhaPrincipal() {
   } catch(e) {}
 }
 
-function renderDashboard(a, valoresBar, valoresLine) {
+// ── Roteador de renderização ──────────────────────────────────────────────
+function renderResultado(d) {
   document.getElementById('emptyState').style.display = 'none';
-  document.getElementById('statGrid').style.display = 'grid';
+
+  // Esconde todos os painéis de resultado
+  document.getElementById('resultNumerico').style.display = 'none';
+  document.getElementById('resultCategorico').style.display = 'none';
+  document.getElementById('resultDatas').style.display = 'none';
+
+  // Badge do tipo
+  const tipoBadgeRow = document.getElementById('tipoBadgeRow');
+  const tipoBadge = document.getElementById('tipoBadge');
+  const totalBadge = document.getElementById('totalBadge');
+  const tipoLabels = {numerico: '🔢 Numérico', categorico: '🏷️ Categórico', data: '📅 Datas'};
+  const tipoCores = {numerico: 'badge-numerico', categorico: 'badge-categorico', data: 'badge-data'};
+  tipoBadge.className = 'tipo-result-badge ' + (tipoCores[d.tipo] || '');
+  tipoBadge.textContent = tipoLabels[d.tipo] || d.tipo;
+  totalBadge.textContent = '✓ ' + (d.total || d.count) + ' itens';
+  tipoBadgeRow.style.display = 'flex';
+
+  if (d.tipo === 'numerico') renderNumerico(d);
+  else if (d.tipo === 'categorico') renderCategorico(d);
+  else if (d.tipo === 'data') renderDatas(d);
+}
+
+// ── Render: NUMÉRICO ──────────────────────────────────────────────────────
+function renderNumerico(a) {
+  document.getElementById('resultNumerico').style.display = 'block';
+
+  // Cards
+  const cards = [
+    {label:'Média',        val: fmt(a.media),       color:'#2563eb', sub:'avg'},
+    {label:'Mediana',      val: fmt(a.mediana),      color:'#7c3aed', sub:'mid'},
+    {label:'Moda',         val: a.moda && a.moda.length ? a.moda.map(fmt).join(', ') : 'N/A', color:'#0891b2', sub:'freq.', small:true},
+    {label:'Total',        val: fmt(a.total),        color:'#6366f1', sub: a.count + ' itens'},
+    {label:'Desvio Padrão',val: fmt(a.desvio_padrao),color:'#f59e0b', sub:'σ'},
+    {label:'Mínimo',       val: fmt(a.min),          color:'#16a34a', sub:'menor'},
+    {label:'Máximo',       val: fmt(a.max),          color:'#dc2626', sub:'maior'},
+  ];
+  document.getElementById('statGrid').innerHTML = cards.map(function(c) {
+    return '<div class="stat-card">' +
+      '<div class="stat-bar" style="background:' + c.color + '"></div>' +
+      '<div class="stat-label">' + c.label + '</div>' +
+      '<div class="stat-value" style="font-size:' + (c.small ? '1.1' : '1.8') + 'rem">' + c.val + '</div>' +
+      '<div class="stat-sub">' + c.sub + '</div></div>';
+  }).join('');
+
+  // Insight + qualidade
   document.getElementById('insightBox').style.display = 'block';
-  document.getElementById('chartGrid').style.display = 'grid';
+  document.getElementById('insightBox').textContent = '💡 ' + (a.insight || gerarInsightJS(a));
   document.getElementById('qualityIndicator').style.display = 'block';
-  renderCards(a);
-  renderInsight(a);
-  renderQuality(a.count, a.count, 100);
-  renderBar(valoresBar, a);
-  renderLine(valoresLine, a);
-  document.getElementById('barChartTitle').textContent = 'Distribuição das Respostas';
+  document.getElementById('qualityText').innerHTML = '<strong>' + a.count + '</strong> valores válidos processados';
+
+  // Gráficos
+  document.getElementById('barChartTitle').textContent = a.label ? 'Distribuição — ' + a.label : 'Distribuição das Respostas';
   document.getElementById('lineChartTitle').textContent = 'Evolução dos Valores';
   document.getElementById('principalBadge').style.display = 'none';
-}
-
-function renderCards(a) {
-  const cards = [
-    {label:'Média', val: fmt(a.media), color:'#2563eb', sub:'avg'},
-    {label:'Mediana', val: fmt(a.mediana), color:'#7c3aed', sub:'mid'},
-    {label:'Moda', val: a.moda && a.moda.length ? a.moda.map(fmt).join(', ') : 'N/A', color:'#0891b2', sub:'freq.'},
-    {label:'Total', val: fmt(a.total), color:'#6366f1', sub: a.count + ' itens'},
-    {label:'Desvio Padrão', val: fmt(a.desvio_padrao), color:'#f59e0b', sub:'σ'},
-    {label:'Mínimo', val: fmt(a.min), color:'#16a34a', sub:'menor'},
-    {label:'Máximo', val: fmt(a.max), color:'#dc2626', sub:'maior'},
-  ];
-  document.getElementById('statGrid').innerHTML = cards.map(function(c){ return (
-    '<div class="stat-card">' +
-    '<div class="stat-bar" style="background:' + c.color + '"></div>' +
-    '<div class="stat-label">' + c.label + '</div>' +
-    '<div class="stat-value" style="font-size:' + (c.label==='Moda'?'1.15':'1.8') + 'rem">' + c.val + '</div>' +
-    '<div class="stat-sub">' + c.sub + '</div>' +
-    '</div>'
-  ); }).join('');
-}
-
-function renderInsight(a) {
-  const ib = document.getElementById('insightBox');
-  ib.textContent = '💡 ' + (a.insight || gerarInsightJS(a));
-}
-
-function renderQuality(validas, total, pct) {
-  const el = document.getElementById('qualityText');
-  if (el) el.innerHTML = '<strong>' + validas + '</strong> resposta(s) válida(s) de <strong>' + total + '</strong> total (' + pct + '%)';
-}
-
-function gerarInsightJS(a) {
-  const cv = a.media ? a.desvio_padrao / a.media : 0;
-  let t = cv < 0.1 ? 'Os dados estão muito concentrados próximos da média.'
-        : cv < 0.3 ? 'Os dados apresentam dispersão moderada (σ = ' + fmt(a.desvio_padrao) + ').'
-        :            'Há alta variação nos valores (σ = ' + fmt(a.desvio_padrao) + ').';
-  if (a.moda && a.moda.length) t += ' Valor mais frequente: ' + fmt(a.moda[0]) + '.';
-  const amp = (a.max - a.min).toFixed(2);
-  t += ' Amplitude: ' + amp + ' (de ' + a.min + ' a ' + a.max + ').';
-  if (a.media > a.mediana) t += ' Distribuição assimétrica à direita.';
-  else if (a.media < a.mediana) t += ' Distribuição assimétrica à esquerda.';
-  else t += ' Distribuição aproximadamente simétrica.';
-  return t;
+  const valores = a.valores || [];
+  renderBar(valores, a);
+  renderLine(valores, a);
 }
 
 function renderBar(valores, a) {
   const ctx = document.getElementById('barChart').getContext('2d');
   if (barChartInst) barChartInst.destroy();
-  if (!valores.length) { barChartInst = null; return; }
+  if (!valores.length) return;
   let labels, data, bgColors;
   if (valores.length <= 20) {
-    labels = valores.map(function(_, i){ return 'R' + (i+1); });
+    labels = valores.map(function(_, i) { return 'R' + (i+1); });
     data = valores;
-    bgColors = valores.map(function(v){ return intensityColor(v, a.min, a.max); });
+    bgColors = valores.map(function(v) { return intensityColor(v, a.min, a.max); });
   } else {
     const freqMap = {};
-    valores.forEach(function(v){ freqMap[v] = (freqMap[v] || 0) + 1; });
-    const sorted = Object.keys(freqMap).map(Number).sort(function(a,b){ return a-b; });
+    valores.forEach(function(v) { freqMap[v] = (freqMap[v] || 0) + 1; });
+    const sorted = Object.keys(freqMap).map(Number).sort(function(a,b){return a-b;});
     labels = sorted.map(String);
-    data = sorted.map(function(v){ return freqMap[v]; });
-    bgColors = sorted.map(function(v){ return intensityColor(v, a.min, a.max); });
+    data = sorted.map(function(v) { return freqMap[v]; });
+    bgColors = sorted.map(function(v) { return intensityColor(v, a.min, a.max); });
   }
   barChartInst = new Chart(ctx, {
     type: 'bar',
     data: { labels: labels, datasets: [{ label: 'Respostas', data: data, backgroundColor: bgColors, borderRadius: 6, borderSkipped: false }] },
-    options: { responsive: true, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(c){ return ' ' + c.parsed.y; } } } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } }, x: { grid: { display: false } } } }
+    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } }, x: { grid: { display: false } } } }
   });
 }
 
 function renderLine(valores, a) {
   const ctx = document.getElementById('lineChart').getContext('2d');
   if (lineChartInst) lineChartInst.destroy();
-  if (!valores.length) { lineChartInst = null; return; }
-  const labels = valores.map(function(_, i){ return '#' + (i+1); });
+  if (!valores.length) return;
   lineChartInst = new Chart(ctx, {
     type: 'line',
-    data: { labels: labels, datasets: [
-      { label: 'Valor', data: valores, borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,.1)', borderWidth: 2.5, pointRadius: 4, pointBackgroundColor: valores.map(function(v){ return intensityColor(v, a.min, a.max); }), tension: 0.35, fill: true },
+    data: { labels: valores.map(function(_,i){return '#'+(i+1);}), datasets: [
+      { label: 'Valor', data: valores, borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,.1)', borderWidth: 2.5, pointRadius: 3, tension: 0.35, fill: true },
       { label: 'Média', data: Array(valores.length).fill(a.media), borderColor: '#f59e0b', borderDash: [5,5], borderWidth: 1.5, pointRadius: 0, fill: false }
     ]},
     options: { responsive: true, plugins: { legend: { labels: { boxWidth: 12, font: { size: 11 } } } }, scales: { y: { beginAtZero: false }, x: { grid: { display: false } } } }
   });
 }
 
-if (serverAnalise) renderDashboard(serverAnalise, [], []);
+function gerarInsightJS(a) {
+  const cv = a.media ? a.desvio_padrao / a.media : 0;
+  let t = cv < 0.1 ? 'Dados muito concentrados próximos da média.'
+        : cv < 0.3 ? 'Dispersão moderada (σ = ' + fmt(a.desvio_padrao) + ').'
+        :            'Alta variação nos valores (σ = ' + fmt(a.desvio_padrao) + ').';
+  if (a.moda && a.moda.length) t += ' Mais frequente: ' + fmt(a.moda[0]) + '.';
+  if (a.media > a.mediana) t += ' Distribuição assimétrica à direita.';
+  else if (a.media < a.mediana) t += ' Assimétrica à esquerda.';
+  else t += ' Distribuição simétrica.';
+  return t;
+}
+
+// ── Render: CATEGÓRICO ────────────────────────────────────────────────────
+function renderCategorico(d) {
+  document.getElementById('resultCategorico').style.display = 'block';
+
+  // Cards
+  const cards = [
+    {label:'Total', val: d.total, color:'#2563eb', sub:'registros'},
+    {label:'Categorias', val: d.unicos, color:'#7c3aed', sub:'únicas'},
+    {label:'Diversidade', val: d.diversidade + '%', color:'#0891b2', sub: d.diversidade < 30 ? 'concentrado' : d.diversidade < 70 ? 'moderado' : 'diverso'},
+    {label:'Mais Frequente', val: d.mais_comum, color:'#16a34a', sub: d.mais_comum_count + ' ocorrências', small: true},
+  ];
+  document.getElementById('catStatGrid').innerHTML = cards.map(function(c) {
+    return '<div class="stat-card">' +
+      '<div class="stat-bar" style="background:' + c.color + '"></div>' +
+      '<div class="stat-label">' + c.label + '</div>' +
+      '<div class="stat-value" style="font-size:' + (c.small ? '1rem' : '1.8rem') + ';word-break:break-word">' + c.val + '</div>' +
+      '<div class="stat-sub">' + c.sub + '</div></div>';
+  }).join('');
+
+  // Insight
+  document.getElementById('catInsightBox').style.display = 'block';
+  document.getElementById('catInsightBox').textContent = '💡 ' + d.insight;
+
+  const freqs = d.frequencias || [];
+  const palette = ['#2563eb','#7c3aed','#0891b2','#f59e0b','#16a34a','#dc2626','#6366f1','#ec4899','#14b8a6','#f97316','#84cc16','#a855f7','#06b6d4','#fbbf24','#ef4444','#10b981','#8b5cf6','#3b82f6','#22c55e','#e11d48'];
+
+  // Bar chart
+  if (catBarInst) catBarInst.destroy();
+  const barCtx = document.getElementById('catBarChart').getContext('2d');
+  catBarInst = new Chart(barCtx, {
+    type: 'bar',
+    data: {
+      labels: freqs.map(function(f) { return f.valor.length > 18 ? f.valor.slice(0,16)+'…' : f.valor; }),
+      datasets: [{ label: 'Ocorrências', data: freqs.map(function(f){return f.count;}), backgroundColor: freqs.map(function(_,i){return palette[i % palette.length];}), borderRadius: 6, borderSkipped: false }]
+    },
+    options: { responsive: true, indexAxis: freqs.length > 8 ? 'y' : 'x', plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(c){ return ' ' + c.parsed[freqs.length > 8 ? 'x':'y'] + ' ocorrências (' + freqs[c.dataIndex].pct + '%)'; } } } }, scales: { x: { beginAtZero: true, ticks: { precision: 0 } }, y: { grid: { display: false } } } }
+  });
+
+  // Doughnut (top 6 + outros)
+  if (catDoughnutInst) catDoughnutInst.destroy();
+  const top6 = freqs.slice(0, 6);
+  const outrosCount = freqs.slice(6).reduce(function(s,f){return s+f.count;}, 0);
+  const dLabels = top6.map(function(f){return f.valor;});
+  const dData = top6.map(function(f){return f.count;});
+  if (outrosCount > 0) { dLabels.push('Outros'); dData.push(outrosCount); }
+  const dCtx = document.getElementById('catDoughnutChart').getContext('2d');
+  catDoughnutInst = new Chart(dCtx, {
+    type: 'doughnut',
+    data: { labels: dLabels, datasets: [{ data: dData, backgroundColor: palette.slice(0, dLabels.length), borderWidth: 2, borderColor: '#fff' }] },
+    options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } } }
+  });
+
+  // Ranking list
+  const rankEl = document.getElementById('catRankingList');
+  rankEl.innerHTML = freqs.map(function(f, i) {
+    const pctW = Math.max(4, Math.round(f.pct));
+    return '<div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.45rem">' +
+      '<span style="font-size:.72rem;font-weight:700;color:#94a3b8;min-width:1.3rem">' + (i+1) + '.</span>' +
+      '<div style="flex:1;min-width:0">' +
+        '<div style="display:flex;justify-content:space-between;font-size:.8rem;font-weight:600;color:#334155;margin-bottom:.15rem">' +
+          '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + f.valor + '</span>' +
+          '<span style="color:#64748b;margin-left:.5rem;flex-shrink:0">' + f.count + ' (' + f.pct + '%)</span>' +
+        '</div>' +
+        '<div style="height:5px;background:#f1f5f9;border-radius:99px">' +
+          '<div style="height:5px;background:' + palette[i % palette.length] + ';border-radius:99px;width:' + pctW + '%"></div>' +
+        '</div>' +
+      '</div></div>';
+  }).join('');
+}
+
+// ── Render: DATAS ─────────────────────────────────────────────────────────
+function renderDatas(d) {
+  document.getElementById('resultDatas').style.display = 'block';
+
+  // Cards
+  const cards = [
+    {label:'Total de Datas', val: d.total, color:'#2563eb', sub: d.invalidas ? d.invalidas + ' inválida(s)' : 'todas válidas'},
+    {label:'Período', val: d.periodo_dias, color:'#7c3aed', sub:'dias de intervalo'},
+    {label:'Data Inicial', val: d.data_inicio, color:'#0891b2', sub:'mais antiga', small:true},
+    {label:'Data Final', val: d.data_fim, color:'#16a34a', sub:'mais recente', small:true},
+    {label:'Mês c/ mais registros', val: d.mes_mais_comum, color:'#f59e0b', sub:'mês', small:true},
+    {label:'Dia mais comum', val: d.dia_mais_comum, color:'#6366f1', sub:'da semana', small:true},
+  ];
+  document.getElementById('dateStatGrid').innerHTML = cards.map(function(c) {
+    return '<div class="stat-card">' +
+      '<div class="stat-bar" style="background:' + c.color + '"></div>' +
+      '<div class="stat-label">' + c.label + '</div>' +
+      '<div class="stat-value" style="font-size:' + (c.small ? '1.05' : '1.8') + 'rem;word-break:break-word">' + c.val + '</div>' +
+      '<div class="stat-sub">' + c.sub + '</div></div>';
+  }).join('');
+
+  // Insight
+  document.getElementById('dateInsightBox').style.display = 'block';
+  document.getElementById('dateInsightBox').textContent = '💡 ' + d.insight;
+
+  const mesLabels = (d.por_mes || []).map(function(m){return m.label;});
+  const mesCounts = (d.por_mes || []).map(function(m){return m.count;});
+  const diaLabels = (d.por_dia_semana || []).map(function(m){return m.label;});
+  const diaCounts = (d.por_dia_semana || []).map(function(m){return m.count;});
+  const anoLabels = (d.por_ano || []).map(function(m){return m.label;});
+  const anoCounts = (d.por_ano || []).map(function(m){return m.count;});
+
+  if (dateMesInst) dateMesInst.destroy();
+  dateMesInst = new Chart(document.getElementById('dateMesChart').getContext('2d'), {
+    type: 'bar',
+    data: { labels: mesLabels, datasets: [{ label: 'Registros', data: mesCounts, backgroundColor: 'rgba(37,99,235,0.75)', borderRadius: 5, borderSkipped: false }] },
+    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } }, x: { grid: { display: false } } } }
+  });
+
+  const diaColors = diaCounts.map(function(_, i) {
+    return ['#2563eb','#7c3aed','#0891b2','#f59e0b','#16a34a','#e11d48','#f97316'][i] || '#6366f1';
+  });
+  if (dateDiaInst) dateDiaInst.destroy();
+  dateDiaInst = new Chart(document.getElementById('dateDiaChart').getContext('2d'), {
+    type: 'bar',
+    data: { labels: diaLabels, datasets: [{ label: 'Registros', data: diaCounts, backgroundColor: diaColors, borderRadius: 5, borderSkipped: false }] },
+    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } }, x: { grid: { display: false } } } }
+  });
+
+  if (dateAnoInst) dateAnoInst.destroy();
+  dateAnoInst = new Chart(document.getElementById('dateAnoChart').getContext('2d'), {
+    type: 'line',
+    data: { labels: anoLabels, datasets: [{ label: 'Registros por Ano', data: anoCounts, borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,.15)', borderWidth: 2.5, pointRadius: 5, tension: 0.3, fill: true }] },
+    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } }, x: { grid: { display: false } } } }
+  });
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────
+if (serverAnalise) {
+  const a = Object.assign({tipo:'numerico', valores:[]}, serverAnalise);
+  renderResultado(a);
+}
 if (temFormulario) setTimeout(carregarDadosPergunta, 300);
 </script>
 {% endblock %}

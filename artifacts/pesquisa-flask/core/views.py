@@ -391,6 +391,134 @@ def formulario_analise(request):
 
 @csrf_exempt
 @require_http_methods(["POST"])
+def analisar_dados(request):
+    try:
+        body = json.loads(request.body)
+        tipo = body.get('tipo', 'numerico')
+        dados = body.get('dados', [])
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'JSON inválido.'}, status=400)
+
+    if not dados:
+        return JsonResponse({'error': 'Nenhum dado fornecido.'}, status=400)
+    if len(dados) > 10000:
+        return JsonResponse({'error': 'Máximo de 10.000 itens.'}, status=400)
+
+    if tipo == 'numerico':
+        try:
+            numeros = [float(str(v).strip().replace(',', '.')) for v in dados if str(v).strip()]
+        except ValueError:
+            return JsonResponse({'error': 'Valores inválidos para análise numérica.'}, status=400)
+        if not numeros:
+            return JsonResponse({'error': 'Nenhum número válido encontrado.'}, status=400)
+        result = calcular_estatisticas(numeros)
+        result['tipo'] = 'numerico'
+        result['valores'] = numeros
+        request.session['analise'] = {k: v for k, v in result.items() if k != 'valores'}
+        return JsonResponse(result)
+
+    elif tipo == 'categorico':
+        itens = [str(v).strip() for v in dados if str(v).strip()]
+        if not itens:
+            return JsonResponse({'error': 'Nenhum valor categórico encontrado.'}, status=400)
+        freq = Counter(itens)
+        mais_comum = freq.most_common()
+        total = len(itens)
+        unicos = len(freq)
+        diversidade = round(unicos / total * 100, 1)
+        resultado = {
+            'tipo': 'categorico',
+            'total': total,
+            'unicos': unicos,
+            'diversidade': diversidade,
+            'mais_comum': mais_comum[0][0] if mais_comum else '',
+            'mais_comum_count': mais_comum[0][1] if mais_comum else 0,
+            'frequencias': [
+                {'valor': k, 'count': v, 'pct': round(v / total * 100, 1)}
+                for k, v in mais_comum[:20]
+            ],
+            'insight': _insight_categorico(total, unicos, diversidade, mais_comum),
+        }
+        return JsonResponse(resultado)
+
+    elif tipo == 'data':
+        from datetime import datetime
+        formatos = ['%d/%m/%Y', '%Y-%m-%d', '%d-%m-%Y', '%m/%d/%Y', '%d/%m/%y', '%Y/%m/%d']
+        datas = []
+        invalidas = 0
+        dias_semana_pt = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo']
+        meses_pt = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+
+        for v in dados:
+            v = str(v).strip()
+            if not v:
+                continue
+            parsed = None
+            for fmt in formatos:
+                try:
+                    parsed = datetime.strptime(v, fmt)
+                    break
+                except ValueError:
+                    pass
+            if parsed:
+                datas.append(parsed)
+            else:
+                invalidas += 1
+
+        if not datas:
+            return JsonResponse({'error': 'Nenhuma data válida encontrada. Use formatos como DD/MM/AAAA ou AAAA-MM-DD.'}, status=400)
+
+        datas.sort()
+        total = len(datas)
+        periodo = (datas[-1] - datas[0]).days
+
+        por_mes_raw = Counter(d.strftime('%Y-%m') for d in datas)
+        por_dia_raw = Counter(dias_semana_pt[d.weekday()] for d in datas)
+        por_ano_raw = Counter(d.year for d in datas)
+
+        mes_mais_comum_key = max(por_mes_raw, key=por_mes_raw.get)
+        mes_mais_comum_dt = datetime.strptime(mes_mais_comum_key, '%Y-%m')
+        mes_mais_comum_label = meses_pt[mes_mais_comum_dt.month - 1] + '/' + str(mes_mais_comum_dt.year)
+
+        resultado = {
+            'tipo': 'data',
+            'total': total,
+            'invalidas': invalidas,
+            'data_inicio': datas[0].strftime('%d/%m/%Y'),
+            'data_fim': datas[-1].strftime('%d/%m/%Y'),
+            'periodo_dias': periodo,
+            'mes_mais_comum': mes_mais_comum_label,
+            'dia_mais_comum': max(por_dia_raw, key=por_dia_raw.get),
+            'por_mes': [
+                {'label': meses_pt[datetime.strptime(k, '%Y-%m').month - 1] + '/' + k[:4], 'count': v}
+                for k, v in sorted(por_mes_raw.items())
+            ],
+            'por_dia_semana': [{'label': d, 'count': por_dia_raw.get(d, 0)} for d in dias_semana_pt],
+            'por_ano': [{'label': str(k), 'count': v} for k, v in sorted(por_ano_raw.items())],
+            'insight': f"Analisadas {total} datas ao longo de {periodo} dias ({datas[0].strftime('%d/%m/%Y')} a {datas[-1].strftime('%d/%m/%Y')}). "
+                       f"Mês com mais registros: {mes_mais_comum_label}. Dia da semana mais frequente: {max(por_dia_raw, key=por_dia_raw.get)}.",
+        }
+        return JsonResponse(resultado)
+
+    return JsonResponse({'error': 'Tipo inválido. Use: numerico, categorico, data.'}, status=400)
+
+
+def _insight_categorico(total, unicos, diversidade, mais_comum):
+    txt = f"Total de {total} valores com {unicos} categorias distintas. "
+    if diversidade < 20:
+        txt += "Dados muito concentrados em poucas categorias. "
+    elif diversidade < 60:
+        txt += "Diversidade moderada entre as categorias. "
+    else:
+        txt += "Alta diversidade — muitas categorias diferentes. "
+    if mais_comum:
+        pct_top = round(mais_comum[0][1] / total * 100, 1)
+        txt += f"Valor mais frequente: \"{mais_comum[0][0]}\" ({pct_top}% dos registros)."
+    return txt
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
 def ia_api(request):
     try:
         body = json.loads(request.body)
