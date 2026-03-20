@@ -1,7 +1,23 @@
 import os
+import signal
+import socket
 import math
 from collections import Counter
 from flask import Flask, render_template, request, jsonify
+
+def liberar_porta(porta):
+    """Mata qualquer processo usando a porta antes de iniciar."""
+    try:
+        import subprocess
+        result = subprocess.run(['fuser', f'{porta}/tcp'], capture_output=True, text=True)
+        pids = result.stdout.strip().split()
+        for pid in pids:
+            try:
+                os.kill(int(pid), signal.SIGKILL)
+            except Exception:
+                pass
+    except Exception:
+        pass
 
 app = Flask(__name__)
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
@@ -348,4 +364,5 @@ def ia_csv():
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
+    liberar_porta(port)
     app.run(host="0.0.0.0", port=port, debug=False)
