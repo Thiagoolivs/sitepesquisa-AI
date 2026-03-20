@@ -47,3 +47,27 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+
+# ========================
+# Python / Django
+# ========================
+
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environment
+.venv/
+env/
+
+# Environment variables
+.env
+
+# Django
+db.sqlite3
+/media/
+
+# Logs
+*.log

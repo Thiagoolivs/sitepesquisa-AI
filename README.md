@@ -271,4 +271,6 @@ Resposta individual para cada pergunta dentro de uma submissão.
 
 ## Licença
 
-Este projeto é de uso livre para fins educacionais e comerciais.
+Desenvolvedor: Thiago de Oliveira Coelho Souza
+Ano: 2026
+Todos os Direitos Reservados.
