@@ -1,0 +1,248 @@
+Crie uma aplicação web completa chamada "Pesquisa AI" com FOCO em análise de dados.
+
+========================
+PRIORIDADES (OBRIGATÓRIO)
+========================
+- Backend em Python (Flask) é a base do sistema (prioridade máxima)
+- Página inicial (Dashboard) deve refletir dados do formulário criado na aba "Pesquisa"
+- Se NÃO houver formulário OU respostas:
+  exibir mensagem: "Aguardando dados de pesquisa ou upload"
+- Página IA deve permitir:
+  (1) perguntas abertas sobre os dados
+  (2) upload de CSV para análise
+- Upload de CSV deve existir na página IA E também acessível na página inicial
+- Dashboard deve conter DOIS gráficos:
+  (1) barras: resultado das respostas da pergunta selecionada
+  (2) linha: evolução da PERGUNTA PRINCIPAL ao longo do tempo
+- Sistema deve armazenar em memória pelo menos 150 respostas
+
+========================
+TECNOLOGIAS
+========================
+- Backend: Python + Flask
+- Frontend: HTML, CSS, JavaScript
+- Gráficos: Chart.js
+
+Estrutura:
+- /templates
+- /static
+- app.py
+
+========================
+DESIGN
+========================
+- Tema claro (#f8fafc)
+- Cards brancos (#ffffff), sombra leve
+- Visual limpo e profissional
+- Conteúdo (números) mais destacado que os containers
+
+Navbar:
+- Fixa no topo
+- "Pesquisa AI" à esquerda
+- Links: Dashboard | Pesquisa | IA
+
+========================
+ARMAZENAMENTO
+========================
+- NÃO usar banco de dados
+- Usar variáveis globais no backend
+- Armazenar:
+  - formulário (estrutura)
+  - respostas (mínimo 150)
+  - última análise
+
+========================
+PÁGINA 1 — DASHBOARD
+========================
+
+Estado vazio:
+- Mostrar: "Aguardando dados de pesquisa ou upload"
+
+Estado com dados:
+
+Cards:
+- Média
+- Mediana
+- Moda
+- Total
+- Desvio padrão
+- Mínimo
+- Máximo
+
+Indicador:
+- "X respostas válidas de Y (%)"
+
+Filtro:
+- Dropdown para selecionar pergunta
+
+Upload CSV:
+- Input + botão (mesma lógica da IA)
+
+========================
+GRÁFICOS
+========================
+
+1. Barras:
+- Distribuição da pergunta selecionada
+- Cores: verde → amarelo → vermelho
+
+2. Linha:
+- Evolução das respostas da PERGUNTA PRINCIPAL
+- Baseado na ordem de envio
+
+========================
+CORES
+========================
+- Baixo: verde
+- Médio: amarelo
+- Alto: vermelho
+- Aplicar em indicadores e gráficos
+
+========================
+PÁGINA 2 — PESQUISA
+========================
+
+Criador de formulário:
+
+Campos:
+- Título
+- Descrição
+
+Perguntas:
+- Texto da pergunta
+- Tipo:
+  - Numérico
+  - Texto
+
+IMPORTANTE:
+- Permitir marcar UMA pergunta como "principal"
+
+Ações:
+- Adicionar pergunta
+- Salvar formulário
+
+Responder:
+- Renderizar perguntas dinamicamente
+- Enviar respostas para backend
+
+========================
+ANÁLISE ESTATÍSTICA
+========================
+
+Função em Python que calcula:
+- média
+- mediana
+- moda
+- total
+- desvio padrão
+- mínimo
+- máximo
+
+Regras:
+- Ignorar valores não numéricos
+- Reutilizar para formulário e CSV
+
+========================
+INSIGHT AUTOMÁTICO (SEM IA)
+========================
+
+Gerar texto como:
+- "Dados concentrados próximos da média"
+- "Alta variação"
+- "Distribuição equilibrada"
+
+========================
+PÁGINA 3 — IA
+========================
+
+Funcionalidades:
+
+1. Campo de pergunta:
+- Usuário pergunta sobre os dados
+- Sistema responde com base nos dados atuais
+
+2. Upload de CSV:
+- Input de arquivo
+- Botão "Analisar CSV com IA"
+
+========================
+BACKEND — IA
+========================
+
+Rotas:
+
+POST /ia
+- Recebe pergunta
+- Usa dados atuais
+- Retorna insight
+
+POST /ia_csv
+- Recebe CSV
+- Extrai números
+- Aplica estatística
+- Gera resumo
+
+========================
+INTEGRAÇÃO COM GROQ
+========================
+
+- Usar:
+  os.getenv("GROQ_API_KEY")
+
+- NÃO expor chave no frontend
+
+Prompt para IA:
+"Analise os dados:
+Média: X
+Mediana: Y
+Desvio padrão: Z
+Mínimo: A
+Máximo: B
+
+Explique padrões e conclusões."
+
+========================
+CSV
+========================
+
+- Ler arquivo
+- Ignorar textos
+- Validar:
+  - arquivo vazio
+  - sem números
+
+========================
+FRONTEND
+========================
+
+- fetch para:
+  /analisar
+  /ia
+  /ia_csv
+
+- Atualizar dashboard dinamicamente
+
+========================
+EXTRAS
+========================
+
+- Mensagens:
+  - "Formulário salvo"
+  - "Resposta enviada"
+  - "Arquivo analisado"
+
+- Hover suave
+- Responsivo
+
+========================
+OBJETIVO
+========================
+
+Sistema completo de:
+- formulários
+- coleta de dados
+- análise estatística
+- visualização com gráficos
+- insights com IA
+
+Código limpo, funcional e organizado.
