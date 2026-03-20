@@ -9,6 +9,7 @@ id = "artifacts/mockup-sandbox"
 [deployment]
 router = "application"
 deploymentTarget = "autoscale"
+run = ["gunicorn", "--bind", "0.0.0.0:5000", "main:app"]
 
 [deployment.postBuild]
 args = ["pnpm", "store", "prune"]
@@ -30,13 +31,13 @@ args = "Pesquisa AI — Flask (Python)"
 name = "Pesquisa AI — Flask (Python)"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "cd artifacts/pesquisa-flask && python3 app.py"
-waitForPort = 5000
-
 [workflows.workflow.metadata]
 outputType = "webview"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd artifacts/pesquisa-flask && gunicorn --bind 0.0.0.0:5000 --reuse-port --reload app:app"
+waitForPort = 5000
 
 [agent]
 stack = "PNPM_WORKSPACE"
@@ -48,3 +49,8 @@ timeoutMs = 20000
 
 [nix]
 channel = "stable-25_05"
+packages = ["openssl", "postgresql"]
+
+[[ports]]
+localPort = 5000
+externalPort = 80
