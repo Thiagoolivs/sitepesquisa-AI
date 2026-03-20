@@ -10,6 +10,7 @@ from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
+from .models import Formulario, ItemResposta, OpcaoPergunta, Pergunta, RespostaFormulario
 from .stats import calcular_estatisticas
 
 logging.basicConfig(level=logging.DEBUG)
@@ -65,42 +66,52 @@ def _gerar_insight_ia(pergunta, dados):
         return None, str(e)
 
 
-def _perguntas_numericas(formulario):
+def _get_formulario(request):
+    formulario_id = request.session.get('formulario_id')
+    if not formulario_id:
+        return None
+    try:
+        return Formulario.objects.prefetch_related('perguntas__opcoes').get(pk=formulario_id)
+    except Formulario.DoesNotExist:
+        request.session.pop('formulario_id', None)
+        return None
+
+
+def _perguntas_numericas_db(formulario):
     if not formulario:
         return [], None
-    perguntas = [p for p in formulario.get('perguntas', []) if p.get('tipo') == 'numerica']
-    principal_id = next((p['id'] for p in perguntas if p.get('principal')), None)
-    if not principal_id and perguntas:
-        principal_id = perguntas[0]['id']
-    return perguntas, principal_id
+    perguntas = list(formulario.perguntas.filter(tipo='numerica').order_by('ordem'))
+    principal = next((p for p in perguntas if p.principal), None)
+    principal_id = principal.pergunta_id if principal else (perguntas[0].pergunta_id if perguntas else None)
+    perguntas_dict = [{'id': p.pergunta_id, 'texto': p.texto, 'tipo': p.tipo, 'principal': p.principal} for p in perguntas]
+    return perguntas_dict, principal_id
 
 
-def _get_state(request):
-    return {
-        'formulario': request.session.get('formulario'),
-        'respostas': request.session.get('respostas', []),
-        'analise': request.session.get('analise'),
-    }
+def _get_valores_pergunta(formulario, pergunta_id):
+    valores = []
+    itens = ItemResposta.objects.filter(
+        resposta__formulario=formulario,
+        pergunta_id=pergunta_id,
+    ).values_list('valor', flat=True)
+    for v in itens:
+        try:
+            valores.append(float(v))
+        except (ValueError, TypeError):
+            pass
+    return valores
 
 
 def dashboard(request):
-    state = _get_state(request)
-    formulario = state['formulario']
-    analise = state['analise']
+    formulario = _get_formulario(request)
+    analise = request.session.get('analise')
 
-    perguntas_num, pergunta_principal_id = _perguntas_numericas(formulario)
+    perguntas_num, pergunta_principal_id = _perguntas_numericas_db(formulario)
 
-    if not analise and perguntas_num and state['respostas'] and pergunta_principal_id:
-        valores = []
-        for resp in state['respostas']:
-            for item in resp:
-                if item.get('pergunta_id') == pergunta_principal_id:
-                    try:
-                        valores.append(float(item['valor']))
-                    except (ValueError, TypeError):
-                        pass
+    if not analise and formulario and pergunta_principal_id:
+        valores = _get_valores_pergunta(formulario, pergunta_principal_id)
         if valores:
             analise = calcular_estatisticas(valores)
+            request.session['analise'] = analise
 
     return render(request, 'dashboard.html', {
         'active_page': 'dashboard',
@@ -111,18 +122,19 @@ def dashboard(request):
 
 
 def pesquisa(request):
-    state = _get_state(request)
+    formulario = _get_formulario(request)
+    formulario_dict = formulario.to_dict() if formulario else None
     return render(request, 'pesquisa.html', {
         'active_page': 'pesquisa',
-        'formulario': state['formulario'],
+        'formulario': formulario_dict,
     })
 
 
 def ia_page(request):
-    state = _get_state(request)
+    analise = request.session.get('analise')
     return render(request, 'ia.html', {
         'active_page': 'ia',
-        'analise': state['analise'],
+        'analise': analise,
     })
 
 
@@ -183,11 +195,11 @@ def upload_csv(request):
 @csrf_exempt
 def formulario_api(request):
     if request.method == 'GET':
-        formulario = request.session.get('formulario')
+        formulario = _get_formulario(request)
         if not formulario:
             return JsonResponse({'error': 'Nenhum formulário salvo.'}, status=404)
-        resp = dict(formulario)
-        resp['total_respostas'] = len(request.session.get('respostas', []))
+        resp = formulario.to_dict()
+        resp['total_respostas'] = formulario.respostas.count()
         return JsonResponse(resp)
 
     elif request.method == 'POST':
@@ -199,29 +211,41 @@ def formulario_api(request):
         titulo = body.get('titulo', '').strip()
         if not titulo:
             return JsonResponse({'error': 'Título é obrigatório.'}, status=400)
-        perguntas = body.get('perguntas', [])
-        if not perguntas:
+        perguntas_data = body.get('perguntas', [])
+        if not perguntas_data:
             return JsonResponse({'error': 'Adicione ao menos uma pergunta.'}, status=400)
-        for p in perguntas:
+        for p in perguntas_data:
             if not p.get('texto', '').strip():
                 return JsonResponse({'error': 'Todas as perguntas precisam de texto.'}, status=400)
             if p.get('tipo') == 'multipla_escolha':
                 opcoes = p.get('opcoes', [])
                 if len(opcoes) < 2:
-                    return JsonResponse({'error': f'Pergunta de múltipla escolha precisa de ao menos 2 opções.'}, status=400)
+                    return JsonResponse({'error': 'Pergunta de múltipla escolha precisa de ao menos 2 opções.'}, status=400)
                 for op in opcoes:
                     if not op.get('texto', '').strip():
                         return JsonResponse({'error': 'Todas as opções precisam ter texto.'}, status=400)
 
-        formulario = {
-            'titulo': titulo,
-            'descricao': body.get('descricao', ''),
-            'perguntas': perguntas,
-        }
-        request.session['formulario'] = formulario
-        request.session['respostas'] = []
+        formulario = Formulario.objects.create(
+            titulo=titulo,
+            descricao=body.get('descricao', ''),
+        )
+
+        for i, p_data in enumerate(perguntas_data):
+            pergunta = Pergunta.objects.create(
+                formulario=formulario,
+                pergunta_id=p_data.get('id', f'p{i}'),
+                texto=p_data['texto'],
+                tipo=p_data.get('tipo', 'numerica'),
+                principal=p_data.get('principal', False),
+                ordem=i,
+            )
+            if p_data.get('tipo') == 'multipla_escolha':
+                for op in p_data.get('opcoes', []):
+                    OpcaoPergunta.objects.create(pergunta=pergunta, texto=op['texto'])
+
+        request.session['formulario_id'] = formulario.pk
         request.session['analise'] = None
-        return JsonResponse({'ok': True, 'mensagem': 'Formulário salvo com sucesso!'})
+        return JsonResponse({'ok': True, 'mensagem': 'Formulário salvo com sucesso!', 'id': formulario.pk})
 
     return JsonResponse({'error': 'Método não suportado.'}, status=405)
 
@@ -229,98 +253,89 @@ def formulario_api(request):
 @csrf_exempt
 @require_http_methods(["POST"])
 def formulario_responder(request):
-    formulario = request.session.get('formulario')
+    formulario = _get_formulario(request)
     if not formulario:
         return JsonResponse({'error': 'Nenhum formulário ativo.'}, status=404)
 
     try:
         body = json.loads(request.body)
-        respostas = body.get('respostas', [])
+        respostas_data = body.get('respostas', [])
     except json.JSONDecodeError:
         return JsonResponse({'error': 'JSON inválido.'}, status=400)
 
-    if not respostas:
+    if not respostas_data:
         return JsonResponse({'error': 'Nenhuma resposta fornecida.'}, status=400)
 
-    todas_respostas = request.session.get('respostas', [])
-    todas_respostas.append(respostas)
-    request.session['respostas'] = todas_respostas
-    request.session.modified = True
+    resposta = RespostaFormulario.objects.create(formulario=formulario)
+    for item in respostas_data:
+        ItemResposta.objects.create(
+            resposta=resposta,
+            pergunta_id=item.get('pergunta_id', ''),
+            valor=str(item.get('valor', '')),
+        )
 
-    numericas = [p for p in formulario.get('perguntas', []) if p.get('tipo') == 'numerica']
+    perguntas_num = list(formulario.perguntas.filter(tipo='numerica').values_list('pergunta_id', flat=True))
     valores_num = []
-    for resp in todas_respostas:
-        for item in resp:
-            if any(p['id'] == item.get('pergunta_id') for p in numericas):
-                try:
-                    valores_num.append(float(item['valor']))
-                except (ValueError, TypeError):
-                    pass
+    for pid in perguntas_num:
+        valores_num.extend(_get_valores_pergunta(formulario, pid))
 
     analise = calcular_estatisticas(valores_num) if valores_num else None
     if analise:
         request.session['analise'] = analise
 
+    total_respostas = formulario.respostas.count()
     return JsonResponse({
         'mensagem': 'Respostas registradas com sucesso!',
-        'total_respostas': len(todas_respostas),
+        'total_respostas': total_respostas,
         'respostas_numericas': len(valores_num),
         'analise': analise,
     })
 
 
 def formulario_dados(request):
-    formulario = request.session.get('formulario')
-    respostas = request.session.get('respostas', [])
+    formulario = _get_formulario(request)
     if not formulario:
         return JsonResponse({'error': 'Nenhum formulário ativo.'}, status=404)
-    if not respostas:
+
+    total_respostas = formulario.respostas.count()
+    if total_respostas == 0:
         return JsonResponse({'error': 'Sem respostas ainda.'}, status=404)
 
     pergunta_id = request.GET.get('pergunta_id')
-    perguntas = formulario.get('perguntas', [])
-    pergunta_obj = next((p for p in perguntas if p['id'] == pergunta_id), None)
-
-    if not pergunta_obj:
+    try:
+        pergunta_obj = formulario.perguntas.get(pergunta_id=pergunta_id)
+    except Pergunta.DoesNotExist:
         return JsonResponse({'error': 'Pergunta não encontrada.'}, status=404)
 
-    total_respostas = len(respostas)
+    pergunta_dict = {
+        'id': pergunta_obj.pergunta_id,
+        'texto': pergunta_obj.texto,
+        'tipo': pergunta_obj.tipo,
+        'principal': pergunta_obj.principal,
+    }
 
-    if pergunta_obj.get('tipo') == 'multipla_escolha':
-        contagem = Counter()
-        for resp in respostas:
-            for item in resp:
-                if item.get('pergunta_id') == pergunta_id:
-                    val = item.get('valor', '').strip()
-                    if val:
-                        contagem[val] += 1
-        opcoes = pergunta_obj.get('opcoes', [])
-        dados_mc = [
-            {'texto': op.get('texto', ''), 'count': contagem.get(op.get('texto', ''), 0)}
-            for op in opcoes
-        ]
+    if pergunta_obj.tipo == 'multipla_escolha':
+        itens = ItemResposta.objects.filter(
+            resposta__formulario=formulario,
+            pergunta_id=pergunta_id,
+        ).values_list('valor', flat=True)
+        contagem = Counter(itens)
+        opcoes = pergunta_obj.opcoes.all()
+        dados_mc = [{'texto': op.texto, 'count': contagem.get(op.texto, 0)} for op in opcoes]
         return JsonResponse({
-            'pergunta': pergunta_obj,
+            'pergunta': pergunta_dict,
             'tipo': 'multipla_escolha',
             'dados_mc': dados_mc,
             'total_respostas': total_respostas,
         })
 
-    valores = []
-    for resp in respostas:
-        for item in resp:
-            if item.get('pergunta_id') == pergunta_id:
-                try:
-                    valores.append(float(item['valor']))
-                except (ValueError, TypeError):
-                    pass
-
+    valores = _get_valores_pergunta(formulario, pergunta_id)
     stats = calcular_estatisticas(valores) if valores else None
     pct = round(len(valores) / total_respostas * 100) if total_respostas > 0 else 0
 
     return JsonResponse({
-        'pergunta': pergunta_obj,
-        'tipo': pergunta_obj.get('tipo', 'numerica'),
+        'pergunta': pergunta_dict,
+        'tipo': pergunta_obj.tipo,
         'valores': valores,
         'stats': stats,
         'total_respostas': total_respostas,
@@ -330,58 +345,46 @@ def formulario_dados(request):
 
 
 def formulario_analise(request):
-    formulario = request.session.get('formulario')
-    respostas = request.session.get('respostas', [])
+    formulario = _get_formulario(request)
     if not formulario:
         return JsonResponse({'error': 'Nenhum formulário ativo.'}, status=404)
 
-    perguntas = formulario.get('perguntas', [])
+    formulario_dict = formulario.to_dict()
+    total_respostas = formulario.respostas.count()
     resultado = []
 
-    for p in perguntas:
-        pid = p['id']
-        tipo = p.get('tipo')
+    for p in formulario.perguntas.order_by('ordem'):
+        pid = p.pergunta_id
+        tipo = p.tipo
+        p_dict = {'id': pid, 'texto': p.texto, 'tipo': tipo, 'principal': p.principal}
 
         if tipo == 'numerica':
-            valores = []
-            for resp in respostas:
-                for item in resp:
-                    if item.get('pergunta_id') == pid:
-                        try:
-                            valores.append(float(item['valor']))
-                        except (ValueError, TypeError):
-                            pass
+            valores = _get_valores_pergunta(formulario, pid)
             stats = calcular_estatisticas(valores) if valores else None
-            resultado.append({'pergunta': p, 'tipo': tipo, 'stats': stats, 'valores': valores})
+            resultado.append({'pergunta': p_dict, 'tipo': tipo, 'stats': stats, 'valores': valores})
 
         elif tipo == 'multipla_escolha':
-            contagem = Counter()
-            for resp in respostas:
-                for item in resp:
-                    if item.get('pergunta_id') == pid:
-                        val = item.get('valor', '').strip()
-                        if val:
-                            contagem[val] += 1
-            opcoes = p.get('opcoes', [])
-            dados_mc = [
-                {'texto': op.get('texto', ''), 'count': contagem.get(op.get('texto', ''), 0)}
-                for op in opcoes
-            ]
-            resultado.append({'pergunta': p, 'tipo': tipo, 'dados_mc': dados_mc})
+            itens = ItemResposta.objects.filter(
+                resposta__formulario=formulario,
+                pergunta_id=pid,
+            ).values_list('valor', flat=True)
+            contagem = Counter(itens)
+            opcoes = p.opcoes.all()
+            dados_mc = [{'texto': op.texto, 'count': contagem.get(op.texto, 0)} for op in opcoes]
+            resultado.append({'pergunta': p_dict, 'tipo': tipo, 'dados_mc': dados_mc})
 
         elif tipo == 'texto':
-            textos = []
-            for resp in respostas:
-                for item in resp:
-                    if item.get('pergunta_id') == pid:
-                        val = item.get('valor', '').strip()
-                        if val:
-                            textos.append(val)
-            resultado.append({'pergunta': p, 'tipo': tipo, 'textos': textos})
+            textos = list(
+                ItemResposta.objects.filter(
+                    resposta__formulario=formulario,
+                    pergunta_id=pid,
+                ).exclude(valor='').values_list('valor', flat=True)
+            )
+            resultado.append({'pergunta': p_dict, 'tipo': tipo, 'textos': textos})
 
     return JsonResponse({
-        'formulario': formulario,
-        'total_respostas': len(respostas),
+        'formulario': formulario_dict,
+        'total_respostas': total_respostas,
         'perguntas': resultado,
     })
 
