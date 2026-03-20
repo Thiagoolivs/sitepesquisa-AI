@@ -31,6 +31,13 @@
           <label class="form-label" style="margin:0">Perguntas</label>
           <span class="text-sm text-muted" id="perguntaCount">0 pergunta(s)</span>
         </div>
+
+        <!-- Legenda da pergunta principal -->
+        <div class="principal-legend">
+          <span class="principal-dot"></span>
+          Marque uma pergunta numérica como <strong>Principal</strong> — ela será usada no gráfico de evolução do Dashboard.
+        </div>
+
         <div id="perguntasList"></div>
         <button class="btn btn-outline w-full mt-2" onclick="addPergunta()">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -72,7 +79,6 @@
     </div>
   </div>
 </div>
-
 {% endblock %}
 
 {% block scripts %}
@@ -92,32 +98,73 @@ function switchTab(tab) {
   if (tab === 'responder') carregarFormulario();
 }
 
+// ── Pergunta principal ──────────────────────────────────────────────────
+function setPrincipal(id) {
+  // Só pode marcar como principal se for numérica
+  const p = perguntas.find(p => p.id === id);
+  if (p && p.tipo !== 'numerica') {
+    showToast('Apenas perguntas numéricas podem ser a principal.', 'error');
+    renderPerguntas();
+    return;
+  }
+  perguntas.forEach(p => p.principal = (p.id === id));
+  renderPerguntas();
+}
+
 function addPergunta() {
-  const p = { id: crypto.randomUUID(), texto: '', tipo: 'numerica' };
+  const isFirst = perguntas.length === 0;
+  const p = { id: crypto.randomUUID(), texto: '', tipo: 'numerica', principal: isFirst };
   perguntas.push(p);
   renderPerguntas();
 }
 
 function removePergunta(id) {
+  const removendo = perguntas.find(p => p.id === id);
   perguntas = perguntas.filter(p => p.id !== id);
+  // Se removeu a principal, marca a primeira numérica como principal
+  if (removendo && removendo.principal) {
+    const primeiraNum = perguntas.find(p => p.tipo === 'numerica');
+    if (primeiraNum) primeiraNum.principal = true;
+  }
+  renderPerguntas();
+}
+
+function onTipoChange(id, novoTipo) {
+  const p = perguntas.find(p => p.id === id);
+  if (!p) return;
+  const eraNumericaPrincipal = p.principal && p.tipo === 'numerica';
+  p.tipo = novoTipo;
+  // Se mudou para texto e era principal, passa principal para outra numérica
+  if (novoTipo === 'texto' && eraNumericaPrincipal) {
+    p.principal = false;
+    const outraNum = perguntas.find(q => q.tipo === 'numerica' && q.id !== id);
+    if (outraNum) outraNum.principal = true;
+  }
   renderPerguntas();
 }
 
 function renderPerguntas() {
   document.getElementById('perguntaCount').textContent = `${perguntas.length} pergunta(s)`;
   document.getElementById('perguntasList').innerHTML = perguntas.map((p, i) => `
-    <div class="question-card">
+    <div class="question-card ${p.principal ? 'question-card-principal' : ''}">
       <div class="question-num">${i + 1}.</div>
       <div class="question-fields">
         <div class="question-row">
           <input class="form-control" type="text" placeholder="Texto da pergunta..."
             value="${escHtml(p.texto)}" oninput="perguntas[${i}].texto = this.value" />
           <select class="form-control form-select" style="max-width:175px"
-            onchange="perguntas[${i}].tipo = this.value">
+            onchange="onTipoChange('${p.id}', this.value)">
             <option value="numerica" ${p.tipo==='numerica'?'selected':''}>Numérica</option>
             <option value="texto" ${p.tipo==='texto'?'selected':''}>Texto livre</option>
           </select>
         </div>
+        ${p.tipo === 'numerica' ? `
+        <label class="principal-checkbox ${p.principal ? 'is-principal' : ''}">
+          <input type="radio" name="principal_radio" ${p.principal ? 'checked' : ''}
+            onchange="setPrincipal('${p.id}')" />
+          <span class="principal-star">★</span>
+          ${p.principal ? '<strong>Pergunta Principal</strong>' : 'Marcar como principal'}
+        </label>` : `<span class="tipo-texto-label">Texto livre — não disponível para análise estatística</span>`}
       </div>
       <button class="btn-icon" onclick="removePergunta('${p.id}')" title="Remover">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
@@ -132,10 +179,25 @@ function escHtml(s) {
 async function salvarFormulario() {
   const titulo = document.getElementById('fTitulo').value.trim();
   if (!titulo) { showToast('Título é obrigatório.', 'error'); return; }
-  if (perguntas.some(p => !p.texto.trim())) { showToast('Preencha o texto de todas as perguntas.', 'error'); return; }
   if (!perguntas.length) { showToast('Adicione ao menos uma pergunta.', 'error'); return; }
-  const body = { titulo, descricao: document.getElementById('fDescricao').value, perguntas };
-  const r = await fetch('/formulario', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  if (perguntas.some(p => !p.texto.trim())) { showToast('Preencha o texto de todas as perguntas.', 'error'); return; }
+
+  // Garante que haja exatamente uma pergunta principal numérica
+  const numericas = perguntas.filter(p => p.tipo === 'numerica');
+  if (numericas.length > 0 && !numericas.some(p => p.principal)) {
+    numericas[0].principal = true;
+  }
+
+  const body = {
+    titulo,
+    descricao: document.getElementById('fDescricao').value,
+    perguntas
+  };
+  const r = await fetch('/formulario', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body)
+  });
   const d = await r.json();
   if (!r.ok) { showToast(d.error, 'error'); return; }
   formSalvo = body;
@@ -145,7 +207,7 @@ async function salvarFormulario() {
 
 async function carregarFormulario() {
   const r = await fetch('/formulario');
-  if (!r.ok) { 
+  if (!r.ok) {
     document.getElementById('responderContent').innerHTML = `
       <div class="empty-state">
         <div class="empty-state-icon">📋</div>
@@ -169,9 +231,10 @@ async function carregarFormulario() {
       <div class="responder-question">
         <label>${i+1}. ${escHtml(q.texto)}
           <span class="tipo-tag">${q.tipo}</span>
+          ${q.principal ? '<span class="principal-tag">★ Principal</span>' : ''}
         </label>
         ${q.tipo === 'numerica'
-          ? `<input class="form-control" type="number" placeholder="0" id="resp_${q.id}" oninput="respostas['${q.id}'] = this.value" />`
+          ? `<input class="form-control" type="number" step="any" placeholder="0" id="resp_${q.id}" oninput="respostas['${q.id}'] = this.value" />`
           : `<input class="form-control" type="text" placeholder="Sua resposta..." id="resp_${q.id}" oninput="respostas['${q.id}'] = this.value" />`
         }
       </div>`).join('')}
@@ -183,20 +246,35 @@ async function carregarFormulario() {
 
 async function enviarRespostas() {
   if (!formSalvo) return;
-  const payload = formSalvo.perguntas.map(q => ({ pergunta_id: q.id, valor: respostas[q.id] || '' }));
-  const r = await fetch('/formulario/responder', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({respostas: payload}) });
+  const payload = formSalvo.perguntas.map(q => ({
+    pergunta_id: q.id,
+    valor: respostas[q.id] || ''
+  }));
+  const r = await fetch('/formulario/responder', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({respostas: payload})
+  });
   const d = await r.json();
   if (!r.ok) { showToast(d.error, 'error'); return; }
   showToast(d.mensagem, 'success');
+
+  // Limpa os campos após envio
+  formSalvo.perguntas.forEach(q => {
+    const el = document.getElementById('resp_' + q.id);
+    if (el) el.value = '';
+    respostas[q.id] = '';
+  });
+
   totalEnvios++;
   if (d.analise) {
     ultimaAnalise = d.analise;
-    renderResultados(d.analise, d.respostas_numericas);
+    renderResultados(d.analise, d.respostas_numericas, d.total_respostas);
     switchTab('resultados');
   }
 }
 
-function renderResultados(a, numCount) {
+function renderResultados(a, numCount, totalR) {
   const colors = ['#2563eb','#7c3aed','#0891b2','#6366f1','#f59e0b','#16a34a','#dc2626'];
   const cards = [
     {label:'Média', val:fmt(a.media), sub:'avg'},
@@ -207,9 +285,10 @@ function renderResultados(a, numCount) {
     {label:'Mínimo', val:fmt(a.min), sub:'menor'},
     {label:'Máximo', val:fmt(a.max), sub:'maior'},
   ];
+  const pct = totalR > 0 ? Math.round(numCount / totalR * 100) : 0;
   document.getElementById('resultadosContent').innerHTML = `
     <div class="insight-box" style="margin-bottom:1rem">
-      ✓ Análise de ${totalEnvios} envio(s) · ${numCount} respostas numéricas
+      ✓ <strong>${numCount}</strong> resposta(s) válida(s) de <strong>${totalR}</strong> total (${pct}%)
     </div>
     <div class="stat-grid">
       ${cards.map((c,i) => `
@@ -225,12 +304,16 @@ function renderResultados(a, numCount) {
     </div>`;
 }
 
-// Init: add one question
-addPergunta();
-
-// Load existing form data if any
+// Init: carrega formulário existente ou adiciona primeira pergunta
 {% if formulario %}
 formSalvo = {{ formulario | tojson }};
+// Popula o editor com o formulário existente
+perguntas = JSON.parse(JSON.stringify(formSalvo.perguntas || []));
+document.getElementById('fTitulo').value = formSalvo.titulo || '';
+document.getElementById('fDescricao').value = formSalvo.descricao || '';
+renderPerguntas();
+{% else %}
+addPergunta();
 {% endif %}
 </script>
 {% endblock %}

@@ -40,10 +40,12 @@
     Filtrar por pergunta do formulário
   </div>
   <div class="filter-row">
-    <label for="perguntaSelect">Pergunta:</label>
+    <label for="perguntaSelect">Pergunta (cards + barras):</label>
     <select id="perguntaSelect" onchange="carregarDadosPergunta()">
       {% for p in perguntas_numericas %}
-      <option value="{{ p.id }}">{{ p.texto }}</option>
+      <option value="{{ p.id }}" {% if p.id == pergunta_principal_id %}selected{% endif %}>
+        {{ p.texto }}{% if p.get('principal') %} ★{% endif %}
+      </option>
       {% endfor %}
     </select>
     <button class="btn btn-outline btn-sm" onclick="carregarDadosPergunta()">Atualizar</button>
@@ -87,6 +89,11 @@
   {% endif %}
 </div>
 
+<!-- ── Indicador de qualidade dos dados ───────────────────────────────── -->
+<div id="qualityIndicator" class="quality-indicator" {% if not analise %}style="display:none"{% endif %}>
+  <span id="qualityText"></span>
+</div>
+
 <!-- ── Insight automático ─────────────────────────────────────────────── -->
 <div id="insightBox" class="insight-box" {% if not analise %}style="display:none"{% endif %}>
   {% if analise and analise.insight %}💡 {{ analise.insight }}{% endif %}
@@ -94,29 +101,40 @@
 
 <!-- ── Gráficos ───────────────────────────────────────────────────────── -->
 <div id="chartGrid" class="chart-grid" {% if not analise %}style="display:none"{% endif %}>
+
+  <!-- Gráfico de barras: distribuição da pergunta selecionada -->
   <div class="chart-wrapper">
     <div class="chart-title">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2"><rect x="2" y="3" width="4" height="18" rx="1"/><rect x="10" y="8" width="4" height="13" rx="1"/><rect x="18" y="5" width="4" height="16" rx="1"/></svg>
-      Distribuição das Respostas
+      <span id="barChartTitle">Distribuição das Respostas</span>
     </div>
     <div style="display:flex;align-items:center;gap:1rem;font-size:.75rem;color:#94a3b8;margin-bottom:.75rem">
       <span>🟢 Baixo</span><span>🟡 Médio</span><span>🔴 Alto</span>
     </div>
     <canvas id="barChart"></canvas>
   </div>
+
+  <!-- Gráfico de linha: evolução da pergunta principal -->
   <div class="chart-wrapper">
     <div class="chart-title">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-      Evolução das Respostas
+      <span id="lineChartTitle">Evolução da Pergunta Principal</span>
+      <span class="principal-badge" id="principalBadge" style="display:none">★ Principal</span>
     </div>
     <canvas id="lineChart"></canvas>
+    <div id="lineEmpty" class="chart-empty-msg" style="display:none">
+      Sem respostas da pergunta principal ainda.
+    </div>
   </div>
+
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
 let barChartInst = null, lineChartInst = null;
+// Modo atual: 'csv' | 'manual' | 'formulario'
+let modoAtual = null;
 
 {% if analise %}
 const serverAnalise = {{ analise | tojson }};
@@ -126,11 +144,13 @@ const serverAnalise = null;
 
 {% if perguntas_numericas %}
 const temFormulario = true;
+const perguntaPrincipalId = {{ pergunta_principal_id | tojson }};
 {% else %}
 const temFormulario = false;
+const perguntaPrincipalId = null;
 {% endif %}
 
-// ── Utilidades ──────────────────────────────────────────────────────────
+// ── Utilidades ────────────────────────────────────────────────────────────
 function csvChanged() {
   const f = document.getElementById('csvInput').files[0];
   document.getElementById('csvLabel').innerHTML = f
@@ -139,7 +159,7 @@ function csvChanged() {
   document.getElementById('csvBtn').disabled = !f;
 }
 
-// ── Análise manual ──────────────────────────────────────────────────────
+// ── Análise manual ────────────────────────────────────────────────────────
 async function analisarNums() {
   const raw = document.getElementById('numerosInput').value;
   const nums = raw.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
@@ -153,25 +173,28 @@ async function analisarNums() {
     const d = await r.json();
     if (!r.ok) { showToast(d.error, 'error'); return; }
     showToast('Análise concluída!', 'success');
-    renderDashboard(d, nums);
+    modoAtual = 'manual';
+    renderDashboard(d, nums, nums); // barras e linha com os mesmos dados
   } catch(e) { showToast('Erro ao analisar.', 'error'); }
 }
 
-// ── Upload CSV ──────────────────────────────────────────────────────────
+// ── Upload CSV ────────────────────────────────────────────────────────────
 async function uploadCSV() {
   const f = document.getElementById('csvInput').files[0];
   if (!f) return;
+  if (f.size === 0) { showToast('Arquivo CSV está vazio.', 'error'); return; }
   const fd = new FormData(); fd.append('arquivo', f);
   try {
     const r = await fetch('/upload_csv', {method: 'POST', body: fd});
     const d = await r.json();
     if (!r.ok) { showToast(d.error, 'error'); return; }
     showToast(`Arquivo analisado! ${d.count} valores encontrados.`, 'success');
-    renderDashboard(d, d.valores || []);
+    modoAtual = 'csv';
+    renderDashboard(d, d.valores || [], d.valores || []);
   } catch(e) { showToast('Erro ao processar CSV.', 'error'); }
 }
 
-// ── Dados do formulário ─────────────────────────────────────────────────
+// ── Dados do formulário — pergunta selecionada (cards + barras) ────────────
 async function carregarDadosPergunta() {
   const sel = document.getElementById('perguntaSelect');
   if (!sel) return;
@@ -189,22 +212,78 @@ async function carregarDadosPergunta() {
     }
 
     if (d.stats) {
-      renderDashboard(d.stats, d.valores || []);
+      modoAtual = 'formulario';
+      // Atualiza cards, insight e gráfico de barras com a pergunta selecionada
+      renderCards(d.stats);
+      renderInsight(d.stats);
+      renderQuality(d.respostas_validas, d.total_respostas, d.percentual_validas);
+      renderBar(d.valores || [], d.stats);
+      // Atualiza título do gráfico de barras
+      const sel2 = document.getElementById('perguntaSelect');
+      if (sel2) {
+        const txt = sel2.options[sel2.selectedIndex]?.text.replace(' ★','') || 'Pergunta';
+        document.getElementById('barChartTitle').textContent = `Distribuição — ${txt}`;
+      }
+      // Mostra tudo
+      document.getElementById('emptyState').style.display = 'none';
+      document.getElementById('statGrid').style.display = 'grid';
+      document.getElementById('insightBox').style.display = 'block';
+      document.getElementById('chartGrid').style.display = 'grid';
+      document.getElementById('qualityIndicator').style.display = 'block';
+      // Carrega linha com a pergunta principal (separado)
+      await carregarLinhaPrincipal();
     } else {
       showToast('Nenhum valor numérico registrado ainda para essa pergunta.', 'error');
     }
   } catch(e) { showToast('Erro ao carregar dados do formulário.', 'error'); }
 }
 
-// ── Renderização principal ──────────────────────────────────────────────
-function renderDashboard(a, valores) {
-  // Esconde estado vazio, mostra grid + insight + gráficos
+// ── Dados do formulário — pergunta PRINCIPAL (gráfico de linha) ────────────
+async function carregarLinhaPrincipal() {
+  if (!perguntaPrincipalId) return;
+  try {
+    const r = await fetch(`/formulario/dados?pergunta_id=${perguntaPrincipalId}`);
+    const d = await r.json();
+    if (!r.ok) return;
+
+    // Título e badge do gráfico de linha
+    document.getElementById('principalBadge').style.display = 'inline-flex';
+    if (d.pergunta) {
+      document.getElementById('lineChartTitle').textContent = `Evolução — ${d.pergunta.texto}`;
+    }
+
+    if (d.stats && d.valores && d.valores.length > 0) {
+      document.getElementById('lineEmpty').style.display = 'none';
+      renderLine(d.valores, d.stats);
+    } else {
+      document.getElementById('lineEmpty').style.display = 'block';
+      if (lineChartInst) { lineChartInst.destroy(); lineChartInst = null; }
+    }
+  } catch(e) { /* silencioso */ }
+}
+
+// ── Renderização completa (CSV / manual) ──────────────────────────────────
+function renderDashboard(a, valoresBar, valoresLine) {
   document.getElementById('emptyState').style.display = 'none';
   document.getElementById('statGrid').style.display = 'grid';
   document.getElementById('insightBox').style.display = 'block';
   document.getElementById('chartGrid').style.display = 'grid';
+  document.getElementById('qualityIndicator').style.display = 'block';
 
-  // Cards
+  renderCards(a);
+  renderInsight(a);
+  renderQuality(a.count, a.count, 100);
+  renderBar(valoresBar, a);
+  renderLine(valoresLine, a);
+
+  // Títulos genéricos para modo manual/CSV
+  document.getElementById('barChartTitle').textContent = 'Distribuição das Respostas';
+  document.getElementById('lineChartTitle').textContent = 'Evolução dos Valores';
+  document.getElementById('principalBadge').style.display = 'none';
+}
+
+// ── Renderiza os cards de estatísticas ────────────────────────────────────
+function renderCards(a) {
   const cards = [
     {label:'Média', val: fmt(a.media), color:'#2563eb', sub:'avg'},
     {label:'Mediana', val: fmt(a.mediana), color:'#7c3aed', sub:'mid'},
@@ -221,90 +300,132 @@ function renderDashboard(a, valores) {
       <div class="stat-value" style="font-size:${c.label==='Moda'?'1.15':'1.8'}rem">${c.val}</div>
       <div class="stat-sub">${c.sub}</div>
     </div>`).join('');
-
-  // Insight automático
-  const ib = document.getElementById('insightBox');
-  ib.textContent = '💡 ' + (a.insight || gerarInsightJS(a));
-
-  // Cores dinâmicas: verde → amarelo → vermelho
-  const bgColors = valores.map(v => intensityColor(v, a.min, a.max));
-
-  // Gráfico de barras — distribuição
-  renderBar(valores, bgColors, a);
-
-  // Gráfico de linha — evolução ao longo do tempo
-  renderLine(valores, a);
 }
 
+// ── Renderiza o insight automático ────────────────────────────────────────
+function renderInsight(a) {
+  const ib = document.getElementById('insightBox');
+  ib.textContent = '💡 ' + (a.insight || gerarInsightJS(a));
+}
+
+// ── Renderiza indicador de qualidade ─────────────────────────────────────
+function renderQuality(validas, total, pct) {
+  const el = document.getElementById('qualityText');
+  if (el) {
+    el.innerHTML = `<strong>${validas}</strong> resposta(s) válida(s) de <strong>${total}</strong> total (${pct}%)`;
+  }
+}
+
+// ── Insight automático fallback ───────────────────────────────────────────
 function gerarInsightJS(a) {
   const cv = a.media ? a.desvio_padrao / a.media : 0;
   let t = cv < 0.1 ? 'Os dados estão muito concentrados próximos da média.'
-        : cv < 0.3 ? `Os dados apresentam dispersão moderada (σ = ${a.desvio_padrao}).`
-        :            `Há alta variação nos valores (σ = ${a.desvio_padrao}).`;
-  if (a.moda && a.moda.length) t += ` Valor mais frequente: ${a.moda[0]}.`;
+        : cv < 0.3 ? `Os dados apresentam dispersão moderada (σ = ${fmt(a.desvio_padrao)}).`
+        :            `Há alta variação nos valores (σ = ${fmt(a.desvio_padrao)}).`;
+  if (a.moda && a.moda.length) t += ` Valor mais frequente: ${fmt(a.moda[0])}.`;
   const amp = (a.max - a.min).toFixed(2);
   t += ` Amplitude: ${amp} (de ${a.min} a ${a.max}).`;
+  if (a.media > a.mediana) t += ' Distribuição assimétrica à direita.';
+  else if (a.media < a.mediana) t += ' Distribuição assimétrica à esquerda.';
+  else t += ' Distribuição aproximadamente simétrica.';
   return t;
 }
 
-function renderBar(valores, colors, a) {
+// ── Gráfico de barras: distribuição ──────────────────────────────────────
+function renderBar(valores, a) {
   const ctx = document.getElementById('barChart').getContext('2d');
   if (barChartInst) barChartInst.destroy();
   if (!valores.length) { barChartInst = null; return; }
-  // Agrupar em bins para distribuição quando há muitos valores
+
   let labels, data, bgColors;
   if (valores.length <= 20) {
     labels = valores.map((_, i) => `R${i+1}`);
     data = valores;
-    bgColors = colors;
+    bgColors = valores.map(v => intensityColor(v, a.min, a.max));
   } else {
-    // Distribuição em frequências
+    // Agrupa em frequências quando há muitos valores
     const freqMap = {};
     valores.forEach(v => { freqMap[v] = (freqMap[v] || 0) + 1; });
     const sorted = Object.keys(freqMap).map(Number).sort((a,b) => a-b);
-    labels = sorted.map(v => String(v));
+    labels = sorted.map(String);
     data = sorted.map(v => freqMap[v]);
     bgColors = sorted.map(v => intensityColor(v, a.min, a.max));
   }
+
   barChartInst = new Chart(ctx, {
     type: 'bar',
-    data: { labels, datasets: [{ label: 'Respostas', data, backgroundColor: bgColors, borderRadius: 6, borderSkipped: false }] },
+    data: {
+      labels,
+      datasets: [{
+        label: 'Respostas',
+        data,
+        backgroundColor: bgColors,
+        borderRadius: 6,
+        borderSkipped: false
+      }]
+    },
     options: {
       responsive: true,
-      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.y}` } } },
-      scales: { y: { beginAtZero: true, ticks: { precision: 0 } }, x: { grid: { display: false } } }
-    },
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => ` ${c.parsed.y}` } }
+      },
+      scales: {
+        y: { beginAtZero: true, ticks: { precision: 0 } },
+        x: { grid: { display: false } }
+      }
+    }
   });
 }
 
+// ── Gráfico de linha: evolução ────────────────────────────────────────────
 function renderLine(valores, a) {
   const ctx = document.getElementById('lineChart').getContext('2d');
   if (lineChartInst) lineChartInst.destroy();
   if (!valores.length) { lineChartInst = null; return; }
+
   const labels = valores.map((_, i) => `#${i+1}`);
   lineChartInst = new Chart(ctx, {
     type: 'line',
     data: {
       labels,
       datasets: [
-        { label: 'Valor', data: valores, borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,.1)',
-          borderWidth: 2.5, pointRadius: 4, pointBackgroundColor: valores.map(v => intensityColor(v, a.min, a.max)),
-          tension: 0.35, fill: true },
-        { label: 'Média', data: Array(valores.length).fill(a.media),
-          borderColor: '#f59e0b', borderDash: [5, 5], borderWidth: 1.5, pointRadius: 0, fill: false }
+        {
+          label: 'Valor',
+          data: valores,
+          borderColor: '#6366f1',
+          backgroundColor: 'rgba(99,102,241,.1)',
+          borderWidth: 2.5,
+          pointRadius: 4,
+          pointBackgroundColor: valores.map(v => intensityColor(v, a.min, a.max)),
+          tension: 0.35,
+          fill: true
+        },
+        {
+          label: 'Média',
+          data: Array(valores.length).fill(a.media),
+          borderColor: '#f59e0b',
+          borderDash: [5, 5],
+          borderWidth: 1.5,
+          pointRadius: 0,
+          fill: false
+        }
       ]
     },
     options: {
       responsive: true,
       plugins: { legend: { labels: { boxWidth: 12, font: { size: 11 } } } },
-      scales: { y: { beginAtZero: false }, x: { grid: { display: false } } }
-    },
+      scales: {
+        y: { beginAtZero: false },
+        x: { grid: { display: false } }
+      }
+    }
   });
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────
 if (serverAnalise) {
-  renderDashboard(serverAnalise, []);
+  renderDashboard(serverAnalise, [], []);
 }
 
 // Se tiver formulário com perguntas numéricas, carrega automaticamente
