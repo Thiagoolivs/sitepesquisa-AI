@@ -4,6 +4,7 @@ from collections import Counter
 from flask import Flask, render_template, request, jsonify
 
 app = Flask(__name__)
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 
 # ── Armazenamento em memória (suporta 150+ respostas) ─────────────────────
 formulario_salvo = None
