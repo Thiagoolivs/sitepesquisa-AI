@@ -1,12 +1,12 @@
 import csv
 import io
 import os
+import re
 import statistics
 from collections import Counter
 
 # ── Column classification helpers ────────────────────────────────────────────
 
-# Columns whose names match any of these fragments are silently dropped.
 _TIMESTAMP_FRAGMENTS = [
     'carimbo de data',
     'carimbo de hora',
@@ -17,10 +17,11 @@ _TIMESTAMP_FRAGMENTS = [
     'created_at',
     'submitted_at',
     'hora de envio',
+    'data de envio',
+    'submission time',
+    'response date',
 ]
 
-# Columns whose names match any of these fragments are treated as consent
-# columns — their stats are replaced by a fixed message.
 _CONSENT_FRAGMENTS = [
     'concorda em participar',
     'concordo em participar',
@@ -43,6 +44,63 @@ def _is_timestamp_column(name: str) -> bool:
 def _is_consent_column(name: str) -> bool:
     lower = name.lower().strip()
     return any(frag in lower for frag in _CONSENT_FRAGMENTS)
+
+
+# ── Numeric parsing helpers ───────────────────────────────────────────────────
+
+_STRIP_RE = re.compile(r'[R$€£¥%\s_]')
+
+
+def _try_parse_float(raw: str):
+    """Try to parse a string as float, handling Brazilian and international formats.
+
+    Handles:
+    - Currency symbols and % (stripped)
+    - Comma as decimal separator       → "3,14"       → 3.14
+    - Period as thousand separator     → "1.234,56"   → 1234.56
+    - Integer with thousand separator  → "R$ 5.000"   → 5000
+    - Multiple thousand separators     → "1.234.567"  → 1234567
+    - Standard English format          → "1,234.56"   → 1234.56
+    Returns float or None.
+    """
+    v = _STRIP_RE.sub('', raw.strip())
+    if not v:
+        return None
+    has_comma = ',' in v
+    has_dot = '.' in v
+    try:
+        if has_comma and has_dot:
+            # Determine which is the decimal separator by position of last occurrence
+            if v.rindex(',') > v.rindex('.'):
+                # Brazilian: 1.234,56 or 5.000,00
+                v = v.replace('.', '').replace(',', '.')
+            else:
+                # English: 1,234.56
+                v = v.replace(',', '')
+        elif has_comma:
+            # Comma only: decimal comma (BR) or thousand comma
+            parts = v.split(',')
+            if len(parts) == 2 and len(parts[1]) <= 2:
+                # "8,5" or "8,50" → decimal separator
+                v = v.replace(',', '.')
+            else:
+                # "1,234,567" → thousand separators
+                v = v.replace(',', '')
+        elif has_dot:
+            parts = v.split('.')
+            if len(parts) > 2:
+                # "1.234.567" → multiple dots, all thousand separators
+                v = v.replace('.', '')
+            elif len(parts) == 2 and len(parts[1]) == 3 and parts[1].isdigit():
+                # Exactly 3 digits after single dot: Brazilian thousand separator
+                # "5.000" → 5000, "1.234" → 1234
+                # Edge case: "1.234" could be 1.234 in English, but in a Brazilian
+                # survey context, three-digit groups after dot → thousand separator
+                v = v.replace('.', '')
+            # else: normal decimal "5.5" → 5.5, handled by float() directly
+        return float(v)
+    except ValueError:
+        return None
 
 
 # ── Statistical helpers ──────────────────────────────────────────────────────
@@ -84,7 +142,6 @@ def calc_stats(numbers):
     def fmt(v):
         return round(v, 2) if isinstance(v, float) else v
 
-    # Frequency-based numeric representation for chart rendering / AI context
     freq = Counter(numbers)
     sorted_freq = sorted(freq.items(), key=lambda x: -x[1])
     labels = [str(fmt(k)) for k, _ in sorted_freq[:20]]
@@ -100,19 +157,13 @@ def calc_stats(numbers):
         'min': fmt(minimo),
         'max': fmt(maximo),
         'insight': insight,
-        # Chart-ready structure
         'labels': labels,
         'values': values,
     }
 
 
 def calc_categorical_stats(values):
-    """Compute frequency stats for a categorical column.
-
-    Categorical data is fully converted to a frequency-based numeric
-    representation: ``labels`` (category names) and ``values`` (counts).
-    This canonical form is used for dashboard charts and AI context alike.
-    """
+    """Compute frequency stats for a categorical column."""
     if not values:
         return None
     total = len(values)
@@ -121,7 +172,6 @@ def calc_categorical_stats(values):
     unicos = len(freq)
     diversidade = round(unicos / total * 100, 1)
 
-    # Canonical numeric representation — sorted by frequency descending
     sorted_freq = most_common[:20]
     labels = [item[0] for item in sorted_freq]
     counts = [item[1] for item in sorted_freq]
@@ -133,12 +183,10 @@ def calc_categorical_stats(values):
         'most_common': most_common[0][0] if most_common else '',
         'most_common_count': most_common[0][1] if most_common else 0,
         'most_common_pct': round(most_common[0][1] / total * 100, 1) if most_common else 0,
-        # Standard frequency table (used by existing template rendering)
         'frequencies': [
             {'value': k, 'count': v, 'pct': round(v / total * 100, 1)}
             for k, v in sorted_freq
         ],
-        # Canonical chart-ready structure (labels + values)
         'labels': labels,
         'values': counts,
     }
@@ -146,35 +194,88 @@ def calc_categorical_stats(values):
 
 # ── CSV parsing ──────────────────────────────────────────────────────────────
 
-def parse_csv_as_analysis(content, source_name=''):
-    """Parse a CSV file into the standard analysis dict.
+_ENCODINGS = ('utf-8-sig', 'utf-8', 'latin-1', 'iso-8859-1', 'cp1252', 'utf-16')
 
-    Rules applied automatically:
-    - Timestamp columns (e.g. "Carimbo de data/hora") are silently dropped.
-    - Consent columns (e.g. "Você concorda em participar da pesquisa?") are
-      kept in the column list but their stats are replaced by the fixed message
-      "Todos concordaram em participar da pesquisa" and their type is set to
-      ``consent``.
-    - Each remaining column is classified as ``numeric`` (≥ 80 % parseable as
-      float) or ``categorical``.
-    - Categorical data is always stored with the canonical ``labels``/``values``
-      numeric frequency structure.
-    """
+
+def _decode_content(raw_bytes: bytes) -> tuple:
+    """Try multiple encodings and return (text, encoding_used) or (None, None)."""
+    for enc in _ENCODINGS:
+        try:
+            return raw_bytes.decode(enc), enc
+        except (UnicodeDecodeError, LookupError):
+            continue
+    return None, None
+
+
+def _detect_delimiter(sample: str) -> str:
+    """Detect the CSV delimiter from a text sample."""
     try:
-        reader = csv.DictReader(io.StringIO(content))
-        fieldnames = reader.fieldnames or []
-        if not fieldnames:
+        dialect = csv.Sniffer().sniff(sample, delimiters=',;\t|')
+        return dialect.delimiter
+    except csv.Error:
+        pass
+    # Fallback: count occurrences of common delimiters in first line
+    first_line = sample.split('\n')[0] if '\n' in sample else sample
+    counts = {d: first_line.count(d) for d in (',', ';', '\t', '|')}
+    best = max(counts, key=counts.get)
+    return best if counts[best] > 0 else ','
+
+
+def parse_csv_as_analysis(content, source_name=''):
+    """Parse a CSV file (bytes or string) into the standard analysis dict.
+
+    Refinements applied automatically:
+    - Multiple encoding detection (UTF-8-BOM, UTF-8, Latin-1, CP1252, UTF-16)
+    - Auto-detect delimiter (comma, semicolon, tab, pipe)
+    - Strip BOM / extra whitespace from column headers
+    - Brazilian number format support (1.234,56 → 1234.56)
+    - Currency / percent symbols stripped from numeric values
+    - Timestamp columns silently dropped
+    - Consent columns → type='consent' with fixed message
+    - ≥ 70% parseable as float → numeric column (relaxed from 80%)
+    - All categorical columns use canonical labels/values frequency structure
+    """
+    # ── Decode bytes if needed ────────────────────────────────────────────
+    if isinstance(content, (bytes, bytearray)):
+        text, enc = _decode_content(content)
+        if text is None:
+            return None, (
+                "Não foi possível decodificar o arquivo CSV. "
+                "Salve como UTF-8 e tente novamente."
+            )
+    else:
+        text = content
+
+    if not text.strip():
+        return None, "Arquivo CSV vazio."
+
+    # ── Detect delimiter ──────────────────────────────────────────────────
+    delimiter = _detect_delimiter(text[:8192])
+
+    try:
+        reader = csv.DictReader(io.StringIO(text), delimiter=delimiter)
+        raw_fieldnames = reader.fieldnames
+
+        if not raw_fieldnames:
             return None, "CSV sem cabeçalhos. A primeira linha deve conter os nomes das colunas."
 
-        # Collect raw values per column
+        # Clean column names: strip whitespace, BOM, zero-width chars
+        fieldnames = [
+            re.sub(r'[\ufeff\u200b\r]', '', name).strip()
+            for name in raw_fieldnames
+        ]
+        # Build mapping old → new name for row access
+        name_map = dict(zip(raw_fieldnames, fieldnames))
+
         raw_columns = {name: [] for name in fieldnames}
         total_rows = 0
+
         for row in reader:
             total_rows += 1
-            for name in fieldnames:
-                val = str(row.get(name, '')).strip()
-                if val:
-                    raw_columns[name].append(val)
+            for raw_name, clean_name in name_map.items():
+                val = str(row.get(raw_name, '') or '').strip()
+                if val and val.lower() not in ('n/a', 'na', 'null', 'none', '-', ''):
+                    raw_columns[clean_name].append(val)
 
         if total_rows == 0:
             return None, "Arquivo CSV sem linhas de dados."
@@ -182,13 +283,17 @@ def parse_csv_as_analysis(content, source_name=''):
         columns = []
         for col_name in fieldnames:
 
-            # 1. Drop timestamp columns entirely
+            # 1. Skip blank column names
+            if not col_name:
+                continue
+
+            # 2. Drop timestamp columns entirely
             if _is_timestamp_column(col_name):
                 continue
 
             values = raw_columns[col_name]
 
-            # 2. Consent columns → fixed message, no statistics
+            # 3. Consent columns → fixed message, no statistics
             if _is_consent_column(col_name):
                 columns.append({
                     'name': col_name,
@@ -203,17 +308,17 @@ def parse_csv_as_analysis(content, source_name=''):
             if not values:
                 continue
 
-            # 3. Classify as numeric or categorical
+            # 4. Classify as numeric or categorical
             numeric_values = []
             for v in values:
-                try:
-                    numeric_values.append(float(v.replace(',', '.')))
-                except ValueError:
-                    pass
+                parsed = _try_parse_float(v)
+                if parsed is not None:
+                    numeric_values.append(parsed)
 
             numeric_ratio = len(numeric_values) / len(values) if values else 0
 
-            if numeric_ratio >= 0.8 and numeric_values:
+            # Relaxed threshold: 70% parseable → numeric
+            if numeric_ratio >= 0.70 and len(numeric_values) >= 2:
                 columns.append({
                     'name': col_name,
                     'type': 'numeric',
@@ -273,10 +378,9 @@ def build_analysis_from_form(formulario):
         if pergunta.tipo == 'numerica':
             numeric_values = []
             for v in valores_raw:
-                try:
-                    numeric_values.append(float(v))
-                except (ValueError, TypeError):
-                    pass
+                parsed = _try_parse_float(v)
+                if parsed is not None:
+                    numeric_values.append(parsed)
             columns.append({
                 'name': pergunta.texto,
                 'type': 'numeric',
@@ -329,12 +433,7 @@ def get_groq_client():
 
 
 def _build_ai_context(context_data: dict) -> str:
-    """Build a structured, unambiguous context string for the AI prompt.
-
-    Uses the canonical labels/values frequency representation for all columns
-    so the model receives numeric data regardless of the original column type.
-    Timestamp and consent columns are excluded automatically.
-    """
+    """Build a structured context string for the AI prompt."""
     if not context_data:
         return ""
 
@@ -352,12 +451,10 @@ def _build_ai_context(context_data: dict) -> str:
     for col in columns:
         col_type = col.get('type', '')
 
-        # Skip consent columns in AI context (already handled by the UI)
         if col_type == 'consent':
             lines.append(f"Coluna '{col['name']}': Todos concordaram em participar.")
             continue
 
-        # Skip empty columns
         if col_type in ('empty', 'text') or not col.get('stats'):
             if col_type == 'text' and col.get('values'):
                 lines.append(f"Coluna '{col['name']}' (texto livre): {col['total']} respostas")
@@ -372,7 +469,6 @@ def _build_ai_context(context_data: dict) -> str:
                 f"Média={stats['media']} | Mediana={stats['mediana']} | "
                 f"DP={stats['desvio_padrao']} | Min={stats['min']} | Max={stats['max']}"
             )
-            # Include top-frequency values as labels/values
             if stats.get('labels') and stats.get('values'):
                 pairs = ', '.join(
                     f"{l}→{v}" for l, v in zip(stats['labels'][:10], stats['values'][:10])

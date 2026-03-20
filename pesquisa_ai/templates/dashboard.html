@@ -208,83 +208,95 @@
 {% if active_analysis %}
 // ── Render gráficos da análise ativa ─────────────────────────────────────
 const activeAnalysis = {{ active_analysis|tojson }};
-document.addEventListener('DOMContentLoaded', function() {
-  renderActiveCharts(activeAnalysis);
-});
 
 function renderActiveCharts(analysis) {
-  const cols = analysis.columns || [];
-  cols.forEach(function(col, i) {
-    const idx = i + 1;
-    if (col.type === 'numeric' && col.values && col.values.length > 0) {
-      renderNumericCharts(col, idx);
-    } else if (col.type === 'categorical' && col.stats && col.stats.labels) {
-      renderCatChart(col, idx);
+  if (!analysis || !analysis.columns) return;
+  analysis.columns.forEach(function(col, i) {
+    var idx = i + 1;
+    try {
+      if (col.type === 'numeric' && col.stats) {
+        renderNumericCharts(col, idx);
+      } else if (col.type === 'categorical' && col.stats) {
+        renderCatChart(col, idx);
+      }
+    } catch(e) {
+      console.warn('Erro ao renderizar gráfico da coluna "' + col.name + '":', e);
     }
-    // consent and text columns have no chart canvas — skip silently
   });
 }
 
 function renderNumericCharts(col, idx) {
-  const vals = col.values;
-  const s = col.stats;
-  const barCtx = document.getElementById('barChart_' + idx);
-  const lineCtx = document.getElementById('lineChart_' + idx);
+  var s = col.stats;
+  var vals = col.values || [];
 
-  if (barCtx) {
-    // Use canonical labels/values from stats (frequency-based numeric representation)
-    let labels, data, colors;
-    if (s.labels && s.labels.length) {
-      labels = s.labels;
-      data   = s.values;
-      colors = data.map(function(v){ return intensityColor(v, Math.min.apply(null,data), Math.max.apply(null,data)); });
-    } else if (vals.length <= 30) {
-      labels = vals.map(function(_, i){ return 'R'+(i+1); });
-      data   = vals;
-      colors = vals.map(function(v){ return intensityColor(v, s.min, s.max); });
-    } else {
-      const fm = {};
-      vals.forEach(function(v){ const k = parseFloat(v).toFixed(1); fm[k]=(fm[k]||0)+1; });
-      const sorted = Object.keys(fm).map(Number).sort(function(a,b){return a-b;});
-      labels = sorted.map(String);
-      data   = sorted.map(function(v){ return fm[v.toFixed(1)]; });
-      colors = sorted.map(function(v){ return intensityColor(v, s.min, s.max); });
-    }
+  // ── Bar chart: frequency distribution ──────────────────────────────────
+  var barCtx = document.getElementById('barChart_' + idx);
+  if (barCtx && s.labels && s.labels.length) {
+    var barLabels = s.labels;
+    var barData   = s.values;
+    var dMin = Math.min.apply(null, barData);
+    var dMax = Math.max.apply(null, barData);
     new Chart(barCtx, {
       type: 'bar',
-      data: { labels: labels, datasets: [{ data: data, backgroundColor: colors, borderRadius: 4, borderSkipped: false }] },
-      options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } }, x: { grid: { display: false } } } }
+      data: {
+        labels: barLabels,
+        datasets: [{
+          data: barData,
+          backgroundColor: barData.map(function(v){ return intensityColor(v, dMin, dMax); }),
+          borderRadius: 4,
+          borderSkipped: false,
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true, ticks: { precision: 0 } },
+          x: { grid: { display: false } }
+        }
+      }
     });
   }
 
-  if (lineCtx) {
-    const displayVals = vals.length > 100 ? vals.slice(0, 100) : vals;
+  // ── Line chart: value sequence ──────────────────────────────────────────
+  var lineCtx = document.getElementById('lineChart_' + idx);
+  if (lineCtx && vals.length) {
+    var display = vals.length > 100 ? vals.slice(0, 100) : vals;
     new Chart(lineCtx, {
       type: 'line',
       data: {
-        labels: displayVals.map(function(_, i){ return i+1; }),
+        labels: display.map(function(_, i){ return i + 1; }),
         datasets: [{
-          data: displayVals,
+          data: display,
           borderColor: '#2563eb',
           backgroundColor: 'rgba(37,99,235,.08)',
           fill: true,
           tension: 0.35,
-          pointRadius: displayVals.length > 30 ? 0 : 3,
+          pointRadius: display.length > 30 ? 0 : 3,
           borderWidth: 2,
         }]
       },
-      options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: false }, x: { grid: { display: false }, ticks: { maxTicksLimit: 8 } } } }
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: false },
+          x: { grid: { display: false }, ticks: { maxTicksLimit: 8 } }
+        }
+      }
     });
   }
 }
 
 function renderCatChart(col, idx) {
-  const ctx = document.getElementById('catChart_' + idx);
+  var ctx = document.getElementById('catChart_' + idx);
   if (!ctx) return;
-  // Use the canonical labels/values (frequency-based numeric representation)
-  const labels = col.stats.labels || [];
-  const values = col.stats.values || [];
-  const palette = ['#4f46e5','#06b6d4','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#0ea5e9','#84cc16','#f97316'];
+  var labels = (col.stats.labels || []).map(String);
+  var values = col.stats.values || [];
+  if (!labels.length || !values.length) return;
+  var total = values.reduce(function(a, b){ return a + b; }, 0);
+  var palette = ['#4f46e5','#06b6d4','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#0ea5e9','#84cc16','#f97316'];
+  var horizontal = labels.length > 6;
   new Chart(ctx, {
     type: 'bar',
     data: {
@@ -297,24 +309,30 @@ function renderCatChart(col, idx) {
       }]
     },
     options: {
-      indexAxis: labels.length > 8 ? 'y' : 'x',
+      indexAxis: horizontal ? 'y' : 'x',
       responsive: true,
       plugins: {
         legend: { display: false },
         tooltip: {
           callbacks: {
-            label: function(ctx) {
-              const total = values.reduce(function(a,b){return a+b;},0);
-              const pct = total ? ((ctx.parsed.y||ctx.parsed.x)/total*100).toFixed(1) : 0;
-              return (ctx.parsed.y !== undefined ? ctx.parsed.y : ctx.parsed.x) + ' respostas (' + pct + '%)';
+            label: function(c) {
+              var v = horizontal ? c.parsed.x : c.parsed.y;
+              var pct = total ? (v / total * 100).toFixed(1) : 0;
+              return v + ' respostas (' + pct + '%)';
             }
           }
         }
       },
-      scales: { x: { grid: { display: false } }, y: { ticks: { precision: 0 } } }
+      scales: {
+        x: { grid: { display: false } },
+        y: { ticks: { precision: 0 } }
+      }
     }
   });
 }
+
+// Call directly — DOM is already parsed (script is at end of <body>)
+renderActiveCharts(activeAnalysis);
 
 {% else %}
 // ── Manual analysis (free state) ──────────────────────────────────────────

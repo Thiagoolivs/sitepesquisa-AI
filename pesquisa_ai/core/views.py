@@ -82,7 +82,7 @@ def api_csv_upload(request):
         return JsonResponse({'error': 'Arquivo vazio.'}, status=400)
 
     try:
-        content = arquivo.read().decode('utf-8-sig', errors='ignore')
+        content = arquivo.read()
     except Exception as e:
         return JsonResponse({'error': f'Erro ao ler arquivo: {e}'}, status=400)
 
