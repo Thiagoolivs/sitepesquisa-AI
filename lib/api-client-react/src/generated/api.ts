@@ -21,6 +21,8 @@ import type {
   AnalisarResult,
   ErrorResponse,
   HealthStatus,
+  IaInput,
+  IaResult,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -193,4 +195,91 @@ export const useAnalisar = <
   TContext
 > => {
   return useMutation(getAnalisarMutationOptions(options));
+};
+
+/**
+ * Sends statistical data to an AI model and returns a textual analysis
+ * @summary AI analysis
+ */
+export const getIaAnaliseUrl = () => {
+  return `/api/ia`;
+};
+
+export const iaAnalise = async (
+  iaInput: IaInput,
+  options?: RequestInit,
+): Promise<IaResult> => {
+  return customFetch<IaResult>(getIaAnaliseUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(iaInput),
+  });
+};
+
+export const getIaAnaliseMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof iaAnalise>>,
+    TError,
+    { data: BodyType<IaInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof iaAnalise>>,
+  TError,
+  { data: BodyType<IaInput> },
+  TContext
+> => {
+  const mutationKey = ["iaAnalise"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof iaAnalise>>,
+    { data: BodyType<IaInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return iaAnalise(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type IaAnaliseMutationResult = NonNullable<
+  Awaited<ReturnType<typeof iaAnalise>>
+>;
+export type IaAnaliseMutationBody = BodyType<IaInput>;
+export type IaAnaliseMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary AI analysis
+ */
+export const useIaAnalise = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof iaAnalise>>,
+    TError,
+    { data: BodyType<IaInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof iaAnalise>>,
+  TError,
+  { data: BodyType<IaInput> },
+  TContext
+> => {
+  return useMutation(getIaAnaliseMutationOptions(options));
 };

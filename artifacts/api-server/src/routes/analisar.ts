@@ -28,6 +28,11 @@ function calcularModa(nums: number[]): number[] {
     .map(([val]) => Number(val));
 }
 
+function calcularDesvioPadrao(nums: number[], media: number): number {
+  const variance = nums.reduce((acc, val) => acc + Math.pow(val - media, 2), 0) / nums.length;
+  return Math.sqrt(variance);
+}
+
 router.post("/analisar", (req, res) => {
   const parseResult = AnalisarBody.safeParse(req.body);
   if (!parseResult.success) {
@@ -49,8 +54,9 @@ router.post("/analisar", (req, res) => {
   const count = numeros.length;
   const min = Math.min(...numeros);
   const max = Math.max(...numeros);
+  const desvio_padrao = calcularDesvioPadrao(numeros, media);
 
-  const result = AnalisarResponse.parse({ media, mediana, moda, total, count, min, max });
+  const result = AnalisarResponse.parse({ media, mediana, moda, total, count, min, max, desvio_padrao });
   res.json(result);
 });
 

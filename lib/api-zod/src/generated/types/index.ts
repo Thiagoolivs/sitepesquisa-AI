@@ -10,3 +10,5 @@ export * from "./analisarInput";
 export * from "./analisarResult";
 export * from "./errorResponse";
 export * from "./healthStatus";
+export * from "./iaInput";
+export * from "./iaResult";

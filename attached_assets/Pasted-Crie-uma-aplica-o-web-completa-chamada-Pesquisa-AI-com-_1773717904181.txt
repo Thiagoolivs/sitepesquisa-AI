@@ -1,0 +1,155 @@
+Crie uma aplicação web completa chamada "Pesquisa AI" com frontend e backend.
+
+Tecnologias:
+- Backend em Python com Flask
+- Frontend com HTML, CSS e JavaScript
+- Chart.js para gráficos
+
+Estrutura:
+- /templates (HTML)
+- /static (CSS e JS)
+- app.py (backend)
+
+========================
+DESIGN (IMPORTANTE)
+========================
+- Tema claro (light mode)
+- Fundo: #f8fafc
+- Cards: branco (#ffffff), sombra suave
+- Visual moderno, minimalista
+- Conteúdo mais destacado que os containers
+
+Navbar:
+- Fixa no topo
+- "Pesquisa AI" à esquerda
+- Links: Dashboard | Pesquisa | IA
+- Estilo elegante e limpo
+
+========================
+PÁGINA 1 — DASHBOARD
+========================
+- Cards com:
+  - Média
+  - Mediana
+  - Moda
+  - Total
+  - Desvio padrão
+  - Valor mínimo e máximo
+
+- Cards discretos, números grandes
+
+Cores dinâmicas:
+- Baixo → verde
+- Médio → amarelo
+- Alto → vermelho
+- Criar função que calcula cor com base nos valores
+
+Gráfico:
+- Gráfico de barras com Chart.js
+- Mesma lógica de cores (gradiente verde → vermelho)
+
+========================
+PÁGINA 2 — PESQUISA
+========================
+Criar uma página onde o usuário pode:
+
+- Inserir título da pesquisa
+- Inserir pergunta
+- Inserir respostas numéricas separadas por vírgula
+
+Campos:
+- input: título
+- input: pergunta
+- textarea: respostas
+
+Botão:
+- "Analisar Pesquisa"
+
+Ao clicar:
+- Enviar dados para o backend (/analisar)
+- Receber resultados
+- Redirecionar ou atualizar dashboard
+
+========================
+PÁGINA 3 — IA
+========================
+- Campo de texto
+- Botão "Gerar análise"
+
+Funcionamento:
+- Enviar dados estatísticos para o backend
+- Backend envia para API de IA
+- Retorna um resumo textual
+
+IMPORTANTE:
+- NÃO colocar chave da API no frontend
+- Usar variável de ambiente no backend:
+  os.getenv("GROQ_API_KEY")
+
+- Criar rota:
+  POST /ia
+
+========================
+BACKEND (FLASK)
+========================
+
+Criar rota:
+POST /analisar
+
+Função deve:
+- Receber lista de números
+- Calcular:
+  - média
+  - mediana
+  - moda
+  - total
+  - desvio padrão
+  - mínimo
+  - máximo
+
+Retornar JSON
+
+Criar função separada para estatística (código organizado)
+
+========================
+INTEGRAÇÃO COM IA
+========================
+
+Criar função que:
+- Recebe os dados estatísticos
+- Gera prompt tipo:
+  "Analise os seguintes dados: média X, mediana Y..."
+
+- Envia para API da Groq (placeholder se necessário)
+
+========================
+FRONTEND
+========================
+
+- Usar fetch para:
+  /analisar
+  /ia
+
+- Atualizar dashboard dinamicamente
+
+========================
+EXTRAS
+========================
+
+- Código bem organizado e comentado
+- Layout responsivo
+- Hover suave nos cards
+- Não usar banco de dados (armazenamento simples em memória ou variável global)
+- Dados mockados iniciais para teste
+
+========================
+OBJETIVO
+========================
+
+Criar um sistema funcional de:
+- criação de pesquisa
+- análise estatística real
+- visualização moderna
+- integração com IA
+
+Com aparência profissional e código limpo.

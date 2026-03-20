@@ -29,6 +29,19 @@ export interface AnalisarResult {
   min: number;
   /** Maximum value */
   max: number;
+  /** Standard deviation */
+  desvio_padrao: number;
+}
+
+export interface IaInput {
+  /** User question or context for the AI */
+  pergunta: string;
+  dados?: AnalisarResult;
+}
+
+export interface IaResult {
+  /** AI-generated analysis text */
+  resposta: string;
 }
 
 export interface ErrorResponse {

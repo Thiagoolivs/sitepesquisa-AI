@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Layout } from "@/components/layout/Layout";
 import Dashboard from "@/pages/dashboard";
+import Pesquisa from "@/pages/pesquisa";
 import IA from "@/pages/ia";
 import NotFound from "@/pages/not-found";
 
@@ -21,6 +22,7 @@ function Router() {
     <Layout>
       <Switch>
         <Route path="/" component={Dashboard} />
+        <Route path="/pesquisa" component={Pesquisa} />
         <Route path="/ia" component={IA} />
         <Route component={NotFound} />
       </Switch>

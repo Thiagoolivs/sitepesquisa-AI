@@ -21,4 +21,6 @@ export interface AnalisarResult {
   min: number;
   /** Maximum value */
   max: number;
+  /** Standard deviation */
+  desvio_padrao: number;
 }

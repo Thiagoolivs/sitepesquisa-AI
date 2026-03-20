@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { BarChart3, Sparkles } from "lucide-react";
+import { BarChart3, Sparkles, ClipboardList } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function Navbar() {
@@ -17,29 +17,41 @@ export function Navbar() {
               Pesquisa AI
             </span>
           </div>
-          <nav className="flex items-center gap-2">
-            <Link 
-              href="/" 
+          <nav className="flex items-center gap-1">
+            <Link
+              href="/"
               className={cn(
                 "px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200",
-                location === "/" 
-                  ? "bg-slate-100 text-blue-700 shadow-sm" 
+                location === "/"
+                  ? "bg-slate-100 text-blue-700 shadow-sm"
                   : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
               )}
             >
               Dashboard
             </Link>
-            <Link 
-              href="/ia" 
+            <Link
+              href="/pesquisa"
               className={cn(
                 "px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 flex items-center gap-1.5",
-                location === "/ia" 
-                  ? "bg-indigo-50 text-indigo-700 shadow-sm border border-indigo-100/50" 
+                location === "/pesquisa"
+                  ? "bg-emerald-50 text-emerald-700 shadow-sm border border-emerald-100/50"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+              )}
+            >
+              <ClipboardList className="w-4 h-4" />
+              Pesquisa
+            </Link>
+            <Link
+              href="/ia"
+              className={cn(
+                "px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 flex items-center gap-1.5",
+                location === "/ia"
+                  ? "bg-indigo-50 text-indigo-700 shadow-sm border border-indigo-100/50"
                   : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
               )}
             >
               <Sparkles className="w-4 h-4" />
-              IA Analysis
+              IA
             </Link>
           </nav>
         </div>

@@ -50,6 +50,37 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /ia:
+    post:
+      operationId: iaAnalise
+      tags: [analysis]
+      summary: AI analysis
+      description: Sends statistical data to an AI model and returns a textual analysis
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IaInput"
+      responses:
+        "200":
+          description: AI response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IaResult"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: AI service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   schemas:
     HealthStatus:
@@ -95,6 +126,9 @@ components:
         max:
           type: number
           description: Maximum value
+        desvio_padrao:
+          type: number
+          description: Standard deviation
       required:
         - media
         - mediana
@@ -103,6 +137,25 @@ components:
         - count
         - min
         - max
+        - desvio_padrao
+    IaInput:
+      type: object
+      properties:
+        pergunta:
+          type: string
+          description: User question or context for the AI
+        dados:
+          $ref: "#/components/schemas/AnalisarResult"
+      required:
+        - pergunta
+    IaResult:
+      type: object
+      properties:
+        resposta:
+          type: string
+          description: AI-generated analysis text
+      required:
+        - resposta
     ErrorResponse:
       type: object
       properties:

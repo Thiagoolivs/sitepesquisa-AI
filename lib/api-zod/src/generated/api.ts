@@ -31,4 +31,29 @@ export const AnalisarResponse = zod.object({
   count: zod.number().describe("Count of numbers"),
   min: zod.number().describe("Minimum value"),
   max: zod.number().describe("Maximum value"),
+  desvio_padrao: zod.number().describe("Standard deviation"),
+});
+
+/**
+ * Sends statistical data to an AI model and returns a textual analysis
+ * @summary AI analysis
+ */
+export const IaAnaliseBody = zod.object({
+  pergunta: zod.string().describe("User question or context for the AI"),
+  dados: zod
+    .object({
+      media: zod.number().describe("Mean (average)"),
+      mediana: zod.number().describe("Median"),
+      moda: zod.array(zod.number()).describe("Mode (most frequent values)"),
+      total: zod.number().describe("Sum of all numbers"),
+      count: zod.number().describe("Count of numbers"),
+      min: zod.number().describe("Minimum value"),
+      max: zod.number().describe("Maximum value"),
+      desvio_padrao: zod.number().describe("Standard deviation"),
+    })
+    .optional(),
+});
+
+export const IaAnaliseResponse = zod.object({
+  resposta: zod.string().describe("AI-generated analysis text"),
 });
