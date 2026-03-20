@@ -4,8 +4,51 @@ import os
 import statistics
 from collections import Counter
 
+# ── Column classification helpers ────────────────────────────────────────────
+
+# Columns whose names match any of these fragments are silently dropped.
+_TIMESTAMP_FRAGMENTS = [
+    'carimbo de data',
+    'carimbo de hora',
+    'timestamp',
+    'data/hora',
+    'data e hora',
+    'datetime',
+    'created_at',
+    'submitted_at',
+    'hora de envio',
+]
+
+# Columns whose names match any of these fragments are treated as consent
+# columns — their stats are replaced by a fixed message.
+_CONSENT_FRAGMENTS = [
+    'concorda em participar',
+    'concordo em participar',
+    'aceita participar',
+    'aceito participar',
+    'autorizo',
+    'consentimento',
+    'consent',
+    'você concorda',
+    'voce concorda',
+    'concorda com a participação',
+]
+
+
+def _is_timestamp_column(name: str) -> bool:
+    lower = name.lower().strip()
+    return any(frag in lower for frag in _TIMESTAMP_FRAGMENTS)
+
+
+def _is_consent_column(name: str) -> bool:
+    lower = name.lower().strip()
+    return any(frag in lower for frag in _CONSENT_FRAGMENTS)
+
+
+# ── Statistical helpers ──────────────────────────────────────────────────────
 
 def calc_stats(numbers):
+    """Compute descriptive stats for a numeric column."""
     if not numbers:
         return None
     n = len(numbers)
@@ -29,7 +72,7 @@ def calc_stats(numbers):
         insight = f"Alta variação nos valores (σ = {desvio:.2f})."
     if moda:
         v = moda[0]
-        insight += f" Valor mais frequente: {round(v,2) if isinstance(v, float) else v}."
+        insight += f" Valor mais frequente: {round(v, 2) if isinstance(v, float) else v}."
     insight += f" Amplitude: {maximo - minimo:.2f} (de {minimo} a {maximo})."
     if media > mediana:
         insight += " Distribuição assimétrica à direita."
@@ -41,6 +84,12 @@ def calc_stats(numbers):
     def fmt(v):
         return round(v, 2) if isinstance(v, float) else v
 
+    # Frequency-based numeric representation for chart rendering / AI context
+    freq = Counter(numbers)
+    sorted_freq = sorted(freq.items(), key=lambda x: -x[1])
+    labels = [str(fmt(k)) for k, _ in sorted_freq[:20]]
+    values = [v for _, v in sorted_freq[:20]]
+
     return {
         'count': n,
         'media': round(media, 2),
@@ -51,10 +100,19 @@ def calc_stats(numbers):
         'min': fmt(minimo),
         'max': fmt(maximo),
         'insight': insight,
+        # Chart-ready structure
+        'labels': labels,
+        'values': values,
     }
 
 
 def calc_categorical_stats(values):
+    """Compute frequency stats for a categorical column.
+
+    Categorical data is fully converted to a frequency-based numeric
+    representation: ``labels`` (category names) and ``values`` (counts).
+    This canonical form is used for dashboard charts and AI context alike.
+    """
     if not values:
         return None
     total = len(values)
@@ -62,6 +120,12 @@ def calc_categorical_stats(values):
     most_common = freq.most_common()
     unicos = len(freq)
     diversidade = round(unicos / total * 100, 1)
+
+    # Canonical numeric representation — sorted by frequency descending
+    sorted_freq = most_common[:20]
+    labels = [item[0] for item in sorted_freq]
+    counts = [item[1] for item in sorted_freq]
+
     return {
         'total': total,
         'unique': unicos,
@@ -69,20 +133,40 @@ def calc_categorical_stats(values):
         'most_common': most_common[0][0] if most_common else '',
         'most_common_count': most_common[0][1] if most_common else 0,
         'most_common_pct': round(most_common[0][1] / total * 100, 1) if most_common else 0,
+        # Standard frequency table (used by existing template rendering)
         'frequencies': [
             {'value': k, 'count': v, 'pct': round(v / total * 100, 1)}
-            for k, v in most_common[:20]
+            for k, v in sorted_freq
         ],
+        # Canonical chart-ready structure (labels + values)
+        'labels': labels,
+        'values': counts,
     }
 
 
+# ── CSV parsing ──────────────────────────────────────────────────────────────
+
 def parse_csv_as_analysis(content, source_name=''):
+    """Parse a CSV file into the standard analysis dict.
+
+    Rules applied automatically:
+    - Timestamp columns (e.g. "Carimbo de data/hora") are silently dropped.
+    - Consent columns (e.g. "Você concorda em participar da pesquisa?") are
+      kept in the column list but their stats are replaced by the fixed message
+      "Todos concordaram em participar da pesquisa" and their type is set to
+      ``consent``.
+    - Each remaining column is classified as ``numeric`` (≥ 80 % parseable as
+      float) or ``categorical``.
+    - Categorical data is always stored with the canonical ``labels``/``values``
+      numeric frequency structure.
+    """
     try:
         reader = csv.DictReader(io.StringIO(content))
         fieldnames = reader.fieldnames or []
         if not fieldnames:
             return None, "CSV sem cabeçalhos. A primeira linha deve conter os nomes das colunas."
 
+        # Collect raw values per column
         raw_columns = {name: [] for name in fieldnames}
         total_rows = 0
         for row in reader:
@@ -97,10 +181,29 @@ def parse_csv_as_analysis(content, source_name=''):
 
         columns = []
         for col_name in fieldnames:
+
+            # 1. Drop timestamp columns entirely
+            if _is_timestamp_column(col_name):
+                continue
+
             values = raw_columns[col_name]
+
+            # 2. Consent columns → fixed message, no statistics
+            if _is_consent_column(col_name):
+                columns.append({
+                    'name': col_name,
+                    'type': 'consent',
+                    'total': len(values),
+                    'values': [],
+                    'stats': None,
+                    'consent_message': 'Todos concordaram em participar da pesquisa.',
+                })
+                continue
+
             if not values:
                 continue
 
+            # 3. Classify as numeric or categorical
             numeric_values = []
             for v in values:
                 try:
@@ -109,18 +212,23 @@ def parse_csv_as_analysis(content, source_name=''):
                     pass
 
             numeric_ratio = len(numeric_values) / len(values) if values else 0
-            col_data = {'name': col_name, 'total': len(values)}
 
             if numeric_ratio >= 0.8 and numeric_values:
-                col_data['type'] = 'numeric'
-                col_data['values'] = numeric_values
-                col_data['stats'] = calc_stats(numeric_values)
+                columns.append({
+                    'name': col_name,
+                    'type': 'numeric',
+                    'total': len(numeric_values),
+                    'values': numeric_values,
+                    'stats': calc_stats(numeric_values),
+                })
             else:
-                col_data['type'] = 'categorical'
-                col_data['values'] = values
-                col_data['stats'] = calc_categorical_stats(values)
-
-            columns.append(col_data)
+                columns.append({
+                    'name': col_name,
+                    'type': 'categorical',
+                    'total': len(values),
+                    'values': values,
+                    'stats': calc_categorical_stats(values),
+                })
 
         if not columns:
             return None, "Nenhum dado válido encontrado nas colunas do CSV."
@@ -136,9 +244,11 @@ def parse_csv_as_analysis(content, source_name=''):
         return None, f"Erro ao processar CSV: {e}"
 
 
+# ── Form → analysis ──────────────────────────────────────────────────────────
+
 def build_analysis_from_form(formulario):
+    """Build the standard analysis dict from a Formulario instance."""
     from .models import ItemResposta
-    from collections import Counter
 
     columns = []
     for pergunta in formulario.perguntas.order_by('ordem'):
@@ -200,59 +310,127 @@ def build_analysis_from_form(formulario):
     }
 
 
+# ── AI integration ───────────────────────────────────────────────────────────
+
 def get_groq_client():
+    """Return a configured Groq client or None if the key is absent.
+
+    The API key is read exclusively from the GROQ_API_KEY environment variable
+    and is never embedded in source code or prompts.
+    """
+    api_key = os.environ.get('GROQ_API_KEY')
+    if not api_key:
+        return None
     try:
         from groq import Groq
-        api_key = os.environ.get('GROQ_API_KEY')
-        if not api_key:
-            return None
         return Groq(api_key=api_key)
     except Exception:
         return None
 
 
+def _build_ai_context(context_data: dict) -> str:
+    """Build a structured, unambiguous context string for the AI prompt.
+
+    Uses the canonical labels/values frequency representation for all columns
+    so the model receives numeric data regardless of the original column type.
+    Timestamp and consent columns are excluded automatically.
+    """
+    if not context_data:
+        return ""
+
+    source = context_data.get('source_name', '')
+    total = context_data.get('total_responses', 0)
+    columns = context_data.get('columns', [])
+
+    lines = [
+        "=== CONTEXTO DA PESQUISA ===",
+        f"Fonte: {source}" if source else "",
+        f"Total de respostas: {total}",
+        "",
+    ]
+
+    for col in columns:
+        col_type = col.get('type', '')
+
+        # Skip consent columns in AI context (already handled by the UI)
+        if col_type == 'consent':
+            lines.append(f"Coluna '{col['name']}': Todos concordaram em participar.")
+            continue
+
+        # Skip empty columns
+        if col_type in ('empty', 'text') or not col.get('stats'):
+            if col_type == 'text' and col.get('values'):
+                lines.append(f"Coluna '{col['name']}' (texto livre): {col['total']} respostas")
+            continue
+
+        stats = col['stats']
+        lines.append(f"Pergunta: \"{col['name']}\"")
+
+        if col_type == 'numeric':
+            lines.append(
+                f"  Tipo: numérico | N={stats['count']} | "
+                f"Média={stats['media']} | Mediana={stats['mediana']} | "
+                f"DP={stats['desvio_padrao']} | Min={stats['min']} | Max={stats['max']}"
+            )
+            # Include top-frequency values as labels/values
+            if stats.get('labels') and stats.get('values'):
+                pairs = ', '.join(
+                    f"{l}→{v}" for l, v in zip(stats['labels'][:10], stats['values'][:10])
+                )
+                lines.append(f"  Frequências (valor→contagem): {pairs}")
+
+        elif col_type == 'categorical':
+            labels = stats.get('labels', [])
+            values = stats.get('values', [])
+            lines.append(
+                f"  Tipo: categórico | Total={stats['total']} | "
+                f"Categorias distintas={stats['unique']} | "
+                f"Mais comum: \"{stats['most_common']}\" ({stats['most_common_pct']}%)"
+            )
+            if labels and values:
+                pairs = ', '.join(
+                    f"\"{l}\"→{v}" for l, v in zip(labels, values)
+                )
+                lines.append(f"  Distribuição (categoria→contagem): [{pairs}]")
+
+        lines.append("")
+
+    return "\n".join(line for line in lines if line is not None)
+
+
 def generate_ai_response(question, context_data=None):
+    """Send a question + structured data context to Groq and return the answer.
+
+    The GROQ_API_KEY is accessed only through environment variables and is
+    never included in the prompt or logged.
+    """
     client = get_groq_client()
     if not client:
         return None, "Chave GROQ_API_KEY não configurada."
 
-    context = ""
-    if context_data:
-        columns = context_data.get('columns', [])
-        source = context_data.get('source_name', '')
-        total = context_data.get('total_responses', 0)
-        context = f"Análise de dados: {total} respostas"
-        if source:
-            context += f" de '{source}'"
-        context += ".\n\n"
-        for col in columns[:5]:
-            context += f"Coluna '{col['name']}' ({col.get('type', '?')}):\n"
-            stats = col.get('stats')
-            if stats and col.get('type') == 'numeric':
-                context += (
-                    f"  - Média: {stats.get('media')}, Mediana: {stats.get('mediana')}, "
-                    f"Desvio: {stats.get('desvio_padrao')}, "
-                    f"Min: {stats.get('min')}, Max: {stats.get('max')}\n"
-                )
-            elif stats and col.get('type') == 'categorical':
-                context += (
-                    f"  - Total: {stats.get('total')}, Categorias: {stats.get('unique')}, "
-                    f"Mais comum: '{stats.get('most_common')}' ({stats.get('most_common_pct')}%)\n"
-                )
+    context = _build_ai_context(context_data) if context_data else ""
 
-    prompt = (
-        "Você é um analista de dados especialista. "
-        "Responda sempre em português brasileiro de forma clara e objetiva.\n\n"
+    system_prompt = (
+        "Você é um analista de dados especialista em pesquisas e estatística. "
+        "Responda sempre em português brasileiro de forma clara, objetiva e estruturada. "
+        "Quando houver dados numéricos de frequência (labels e values), utilize-os para "
+        "embasar suas análises com precisão. Não invente dados que não estejam no contexto."
     )
+
+    user_message = ""
     if context:
-        prompt += context + "\n"
-    prompt += f"Pergunta: {question}"
+        user_message += context + "\n\n=== PERGUNTA ===\n"
+    user_message += question
 
     try:
         response = client.chat.completions.create(
             model="llama-3.1-8b-instant",
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=700,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message},
+            ],
+            max_tokens=900,
+            temperature=0.3,
         )
         return response.choices[0].message.content.strip(), None
     except Exception as e:

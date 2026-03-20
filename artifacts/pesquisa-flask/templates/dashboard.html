@@ -29,13 +29,21 @@
       <span class="col-type-badge badge-categorical">Categórico</span>
       {% elif col.type == 'text' %}
       <span class="col-type-badge badge-text">Texto</span>
+      {% elif col.type == 'consent' %}
+      <span class="col-type-badge badge-consent">Consentimento</span>
       {% endif %}
       {{ col.name }}
     </div>
-    <span class="col-total-badge">{{ col.total }} registros</span>
+    <span class="col-total-badge">{{ col.total }} participantes</span>
   </div>
 
-  {% if col.type == 'numeric' and col.stats %}
+  {% if col.type == 'consent' %}
+  <div class="consent-message">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+    {{ col.consent_message }}
+  </div>
+
+  {% elif col.type == 'numeric' and col.stats %}
   {% with s=col.stats %}
   <div class="stat-grid stat-grid-sm">
     <div class="stat-card"><div class="stat-bar" style="background:#2563eb"></div><div class="stat-label">Média</div><div class="stat-value">{{ s.media }}</div><div class="stat-sub">avg</div></div>
@@ -210,9 +218,10 @@ function renderActiveCharts(analysis) {
     const idx = i + 1;
     if (col.type === 'numeric' && col.values && col.values.length > 0) {
       renderNumericCharts(col, idx);
-    } else if (col.type === 'categorical' && col.stats && col.stats.frequencies) {
+    } else if (col.type === 'categorical' && col.stats && col.stats.labels) {
       renderCatChart(col, idx);
     }
+    // consent and text columns have no chart canvas — skip silently
   });
 }
 
@@ -223,17 +232,22 @@ function renderNumericCharts(col, idx) {
   const lineCtx = document.getElementById('lineChart_' + idx);
 
   if (barCtx) {
+    // Use canonical labels/values from stats (frequency-based numeric representation)
     let labels, data, colors;
-    if (vals.length <= 30) {
+    if (s.labels && s.labels.length) {
+      labels = s.labels;
+      data   = s.values;
+      colors = data.map(function(v){ return intensityColor(v, Math.min.apply(null,data), Math.max.apply(null,data)); });
+    } else if (vals.length <= 30) {
       labels = vals.map(function(_, i){ return 'R'+(i+1); });
-      data = vals;
+      data   = vals;
       colors = vals.map(function(v){ return intensityColor(v, s.min, s.max); });
     } else {
       const fm = {};
       vals.forEach(function(v){ const k = parseFloat(v).toFixed(1); fm[k]=(fm[k]||0)+1; });
       const sorted = Object.keys(fm).map(Number).sort(function(a,b){return a-b;});
       labels = sorted.map(String);
-      data = sorted.map(function(v){ return fm[v.toFixed(1)]; });
+      data   = sorted.map(function(v){ return fm[v.toFixed(1)]; });
       colors = sorted.map(function(v){ return intensityColor(v, s.min, s.max); });
     }
     new Chart(barCtx, {
@@ -267,23 +281,36 @@ function renderNumericCharts(col, idx) {
 function renderCatChart(col, idx) {
   const ctx = document.getElementById('catChart_' + idx);
   if (!ctx) return;
-  const freqs = col.stats.frequencies || [];
+  // Use the canonical labels/values (frequency-based numeric representation)
+  const labels = col.stats.labels || [];
+  const values = col.stats.values || [];
   const palette = ['#4f46e5','#06b6d4','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#0ea5e9','#84cc16','#f97316'];
   new Chart(ctx, {
     type: 'bar',
     data: {
-      labels: freqs.map(function(f){ return f.value; }),
+      labels: labels,
       datasets: [{
-        data: freqs.map(function(f){ return f.count; }),
-        backgroundColor: freqs.map(function(_, i){ return palette[i % palette.length]; }),
+        data: values,
+        backgroundColor: labels.map(function(_, i){ return palette[i % palette.length]; }),
         borderRadius: 4,
         borderSkipped: false,
       }]
     },
     options: {
-      indexAxis: freqs.length > 8 ? 'y' : 'x',
+      indexAxis: labels.length > 8 ? 'y' : 'x',
       responsive: true,
-      plugins: { legend: { display: false } },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: function(ctx) {
+              const total = values.reduce(function(a,b){return a+b;},0);
+              const pct = total ? ((ctx.parsed.y||ctx.parsed.x)/total*100).toFixed(1) : 0;
+              return (ctx.parsed.y !== undefined ? ctx.parsed.y : ctx.parsed.x) + ' respostas (' + pct + '%)';
+            }
+          }
+        }
+      },
       scales: { x: { grid: { display: false } }, y: { ticks: { precision: 0 } } }
     }
   });
