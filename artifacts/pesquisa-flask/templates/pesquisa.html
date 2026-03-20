@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% set active_page = "pesquisa" %}
+{% load json_filters %}
 
 {% block content %}
 <h1 class="page-title">
@@ -15,7 +15,6 @@
     <button class="tab-btn" onclick="switchTab('resultados')">Resultados</button>
   </div>
 
-  <!-- ── Tab: Criar ──────────────────────────────────────────────────── -->
   <div class="tab-pane active" id="tab-criar">
     <div class="card">
       <div class="card-body">
@@ -31,13 +30,10 @@
           <label class="form-label" style="margin:0">Perguntas</label>
           <span class="text-sm text-muted" id="perguntaCount">0 pergunta(s)</span>
         </div>
-
-        <!-- Legenda da pergunta principal -->
         <div class="principal-legend">
           <span class="principal-dot"></span>
           Marque uma pergunta numérica como <strong>Principal</strong> — ela será usada no gráfico de evolução do Dashboard.
         </div>
-
         <div id="perguntasList"></div>
         <button class="btn btn-outline w-full mt-2" onclick="addPergunta()">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -51,7 +47,6 @@
     </div>
   </div>
 
-  <!-- ── Tab: Responder ─────────────────────────────────────────────── -->
   <div class="tab-pane" id="tab-responder">
     <div class="card">
       <div class="card-body" id="responderContent">
@@ -64,7 +59,6 @@
     </div>
   </div>
 
-  <!-- ── Tab: Resultados ────────────────────────────────────────────── -->
   <div class="tab-pane" id="tab-resultados">
     <div id="resultadosContent">
       <div class="card">
@@ -85,119 +79,99 @@
 <script>
 let perguntas = [];
 let formSalvo = null;
-let ultimaAnalise = null;
 let totalEnvios = 0;
 let respostas = {};
 
 function switchTab(tab) {
-  document.querySelectorAll('.tab-btn').forEach((b, i) => {
-    b.classList.toggle('active', ['criar','responder','resultados'][i] === tab);
+  const tabs = ['criar','responder','resultados'];
+  document.querySelectorAll('.tab-btn').forEach(function(b, i) {
+    b.classList.toggle('active', tabs[i] === tab);
   });
-  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-pane').forEach(function(p){ p.classList.remove('active'); });
   document.getElementById('tab-' + tab).classList.add('active');
   if (tab === 'responder') carregarFormulario();
 }
 
-// ── Pergunta principal ──────────────────────────────────────────────────
 function setPrincipal(id) {
-  // Só pode marcar como principal se for numérica
-  const p = perguntas.find(p => p.id === id);
+  const p = perguntas.find(function(p){ return p.id === id; });
   if (p && p.tipo !== 'numerica') {
     showToast('Apenas perguntas numéricas podem ser a principal.', 'error');
     renderPerguntas();
     return;
   }
-  perguntas.forEach(p => p.principal = (p.id === id));
+  perguntas.forEach(function(p){ p.principal = (p.id === id); });
   renderPerguntas();
 }
 
 function addPergunta() {
   const isFirst = perguntas.length === 0;
-  const p = { id: crypto.randomUUID(), texto: '', tipo: 'numerica', principal: isFirst };
+  const p = { id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).slice(2), texto: '', tipo: 'numerica', principal: isFirst };
   perguntas.push(p);
   renderPerguntas();
 }
 
 function removePergunta(id) {
-  const removendo = perguntas.find(p => p.id === id);
-  perguntas = perguntas.filter(p => p.id !== id);
-  // Se removeu a principal, marca a primeira numérica como principal
+  const removendo = perguntas.find(function(p){ return p.id === id; });
+  perguntas = perguntas.filter(function(p){ return p.id !== id; });
   if (removendo && removendo.principal) {
-    const primeiraNum = perguntas.find(p => p.tipo === 'numerica');
+    const primeiraNum = perguntas.find(function(p){ return p.tipo === 'numerica'; });
     if (primeiraNum) primeiraNum.principal = true;
   }
   renderPerguntas();
 }
 
 function onTipoChange(id, novoTipo) {
-  const p = perguntas.find(p => p.id === id);
+  const p = perguntas.find(function(p){ return p.id === id; });
   if (!p) return;
   const eraNumericaPrincipal = p.principal && p.tipo === 'numerica';
   p.tipo = novoTipo;
-  // Se mudou para texto e era principal, passa principal para outra numérica
   if (novoTipo === 'texto' && eraNumericaPrincipal) {
     p.principal = false;
-    const outraNum = perguntas.find(q => q.tipo === 'numerica' && q.id !== id);
+    const outraNum = perguntas.find(function(q){ return q.tipo === 'numerica' && q.id !== id; });
     if (outraNum) outraNum.principal = true;
   }
   renderPerguntas();
-}
-
-function renderPerguntas() {
-  document.getElementById('perguntaCount').textContent = `${perguntas.length} pergunta(s)`;
-  document.getElementById('perguntasList').innerHTML = perguntas.map((p, i) => `
-    <div class="question-card ${p.principal ? 'question-card-principal' : ''}">
-      <div class="question-num">${i + 1}.</div>
-      <div class="question-fields">
-        <div class="question-row">
-          <input class="form-control" type="text" placeholder="Texto da pergunta..."
-            value="${escHtml(p.texto)}" oninput="perguntas[${i}].texto = this.value" />
-          <select class="form-control form-select" style="max-width:175px"
-            onchange="onTipoChange('${p.id}', this.value)">
-            <option value="numerica" ${p.tipo==='numerica'?'selected':''}>Numérica</option>
-            <option value="texto" ${p.tipo==='texto'?'selected':''}>Texto livre</option>
-          </select>
-        </div>
-        ${p.tipo === 'numerica' ? `
-        <label class="principal-checkbox ${p.principal ? 'is-principal' : ''}">
-          <input type="radio" name="principal_radio" ${p.principal ? 'checked' : ''}
-            onchange="setPrincipal('${p.id}')" />
-          <span class="principal-star">★</span>
-          ${p.principal ? '<strong>Pergunta Principal</strong>' : 'Marcar como principal'}
-        </label>` : `<span class="tipo-texto-label">Texto livre — não disponível para análise estatística</span>`}
-      </div>
-      <button class="btn-icon" onclick="removePergunta('${p.id}')" title="Remover">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-      </button>
-    </div>`).join('');
 }
 
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+function renderPerguntas() {
+  document.getElementById('perguntaCount').textContent = perguntas.length + ' pergunta(s)';
+  document.getElementById('perguntasList').innerHTML = perguntas.map(function(p, i){ return (
+    '<div class="question-card ' + (p.principal ? 'question-card-principal' : '') + '">' +
+    '<div class="question-num">' + (i+1) + '.</div>' +
+    '<div class="question-fields">' +
+    '<div class="question-row">' +
+    '<input class="form-control" type="text" placeholder="Texto da pergunta..." value="' + escHtml(p.texto) + '" oninput="perguntas[' + i + '].texto = this.value" />' +
+    '<select class="form-control form-select" style="max-width:175px" onchange="onTipoChange(\'' + p.id + '\', this.value)">' +
+    '<option value="numerica"' + (p.tipo==='numerica'?' selected':'') + '>Numérica</option>' +
+    '<option value="texto"' + (p.tipo==='texto'?' selected':'') + '>Texto livre</option>' +
+    '</select></div>' +
+    (p.tipo === 'numerica' ?
+      '<label class="principal-checkbox ' + (p.principal ? 'is-principal' : '') + '">' +
+      '<input type="radio" name="principal_radio"' + (p.principal ? ' checked' : '') + ' onchange="setPrincipal(\'' + p.id + '\')" />' +
+      '<span class="principal-star">★</span>' +
+      (p.principal ? '<strong>Pergunta Principal</strong>' : 'Marcar como principal') +
+      '</label>'
+      : '<span class="tipo-texto-label">Texto livre — não disponível para análise estatística</span>') +
+    '</div>' +
+    '<button class="btn-icon" onclick="removePergunta(\'' + p.id + '\')" title="Remover">' +
+    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>' +
+    '</button></div>'
+  ); }).join('');
+}
+
 async function salvarFormulario() {
   const titulo = document.getElementById('fTitulo').value.trim();
   if (!titulo) { showToast('Título é obrigatório.', 'error'); return; }
   if (!perguntas.length) { showToast('Adicione ao menos uma pergunta.', 'error'); return; }
-  if (perguntas.some(p => !p.texto.trim())) { showToast('Preencha o texto de todas as perguntas.', 'error'); return; }
-
-  // Garante que haja exatamente uma pergunta principal numérica
-  const numericas = perguntas.filter(p => p.tipo === 'numerica');
-  if (numericas.length > 0 && !numericas.some(p => p.principal)) {
-    numericas[0].principal = true;
-  }
-
-  const body = {
-    titulo,
-    descricao: document.getElementById('fDescricao').value,
-    perguntas
-  };
-  const r = await fetch('/formulario', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(body)
-  });
+  if (perguntas.some(function(p){ return !p.texto.trim(); })) { showToast('Preencha o texto de todas as perguntas.', 'error'); return; }
+  const numericas = perguntas.filter(function(p){ return p.tipo === 'numerica'; });
+  if (numericas.length > 0 && !numericas.some(function(p){ return p.principal; })) numericas[0].principal = true;
+  const body = { titulo: titulo, descricao: document.getElementById('fDescricao').value, perguntas: perguntas };
+  const r = await fetch('/formulario', { method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken': getCookie('csrftoken')}, body: JSON.stringify(body) });
   const d = await r.json();
   if (!r.ok) { showToast(d.error, 'error'); return; }
   formSalvo = body;
@@ -208,67 +182,48 @@ async function salvarFormulario() {
 async function carregarFormulario() {
   const r = await fetch('/formulario');
   if (!r.ok) {
-    document.getElementById('responderContent').innerHTML = `
-      <div class="empty-state">
-        <div class="empty-state-icon">📋</div>
-        <h3>Nenhum formulário salvo</h3>
-        <p>Crie e salve um formulário na aba "Criar Formulário" primeiro.</p>
-      </div>`;
+    document.getElementById('responderContent').innerHTML = '<div class="empty-state"><div class="empty-state-icon">📋</div><h3>Nenhum formulário salvo</h3><p>Crie e salve um formulário na aba "Criar Formulário" primeiro.</p></div>';
     return;
   }
   const form = await r.json();
   formSalvo = form;
   respostas = {};
-  document.getElementById('responderContent').innerHTML = `
-    <div style="margin-bottom:1rem">
-      <h2 style="font-size:1.2rem;font-weight:800;color:#0f172a">${escHtml(form.titulo)}</h2>
-      ${form.descricao ? `<p class="text-muted text-sm mt-1">${escHtml(form.descricao)}</p>` : ''}
-      <span style="font-size:.8rem;color:#10b981;font-weight:600;display:block;margin-top:.4rem">
-        ${form.total_respostas} envio(s) registrado(s)
-      </span>
-    </div>
-    ${form.perguntas.map((q, i) => `
-      <div class="responder-question">
-        <label>${i+1}. ${escHtml(q.texto)}
-          <span class="tipo-tag">${q.tipo}</span>
-          ${q.principal ? '<span class="principal-tag">★ Principal</span>' : ''}
-        </label>
-        ${q.tipo === 'numerica'
-          ? `<input class="form-control" type="number" step="any" placeholder="0" id="resp_${q.id}" oninput="respostas['${q.id}'] = this.value" />`
-          : `<input class="form-control" type="text" placeholder="Sua resposta..." id="resp_${q.id}" oninput="respostas['${q.id}'] = this.value" />`
-        }
-      </div>`).join('')}
-    <button class="btn btn-primary w-full" onclick="enviarRespostas()">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-      Enviar Respostas
-    </button>`;
+  document.getElementById('responderContent').innerHTML =
+    '<div style="margin-bottom:1rem">' +
+    '<h2 style="font-size:1.2rem;font-weight:800;color:#0f172a">' + escHtml(form.titulo) + '</h2>' +
+    (form.descricao ? '<p class="text-muted text-sm mt-1">' + escHtml(form.descricao) + '</p>' : '') +
+    '<span style="font-size:.8rem;color:#10b981;font-weight:600;display:block;margin-top:.4rem">' + form.total_respostas + ' envio(s) registrado(s)</span>' +
+    '</div>' +
+    form.perguntas.map(function(q, i){ return (
+      '<div class="responder-question">' +
+      '<label>' + (i+1) + '. ' + escHtml(q.texto) +
+      '<span class="tipo-tag">' + q.tipo + '</span>' +
+      (q.principal ? '<span class="principal-tag">★ Principal</span>' : '') +
+      '</label>' +
+      (q.tipo === 'numerica'
+        ? '<input class="form-control" type="number" step="any" placeholder="0" id="resp_' + q.id + '" oninput="respostas[\'' + q.id + '\'] = this.value" />'
+        : '<input class="form-control" type="text" placeholder="Sua resposta..." id="resp_' + q.id + '" oninput="respostas[\'' + q.id + '\'] = this.value" />') +
+      '</div>'
+    ); }).join('') +
+    '<button class="btn btn-primary w-full" onclick="enviarRespostas()">' +
+    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>' +
+    'Enviar Respostas</button>';
 }
 
 async function enviarRespostas() {
   if (!formSalvo) return;
-  const payload = formSalvo.perguntas.map(q => ({
-    pergunta_id: q.id,
-    valor: respostas[q.id] || ''
-  }));
-  const r = await fetch('/formulario/responder', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({respostas: payload})
-  });
+  const payload = formSalvo.perguntas.map(function(q){ return { pergunta_id: q.id, valor: respostas[q.id] || '' }; });
+  const r = await fetch('/formulario/responder', { method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken': getCookie('csrftoken')}, body: JSON.stringify({respostas: payload}) });
   const d = await r.json();
   if (!r.ok) { showToast(d.error, 'error'); return; }
   showToast(d.mensagem, 'success');
-
-  // Limpa os campos após envio
-  formSalvo.perguntas.forEach(q => {
+  formSalvo.perguntas.forEach(function(q){
     const el = document.getElementById('resp_' + q.id);
     if (el) el.value = '';
     respostas[q.id] = '';
   });
-
   totalEnvios++;
   if (d.analise) {
-    ultimaAnalise = d.analise;
     renderResultados(d.analise, d.respostas_numericas, d.total_respostas);
     switchTab('resultados');
   }
@@ -279,35 +234,35 @@ function renderResultados(a, numCount, totalR) {
   const cards = [
     {label:'Média', val:fmt(a.media), sub:'avg'},
     {label:'Mediana', val:fmt(a.mediana), sub:'mid'},
-    {label:'Moda', val:a.moda.length?a.moda.map(fmt).join(', '):'N/A', sub:'freq.'},
-    {label:'Total', val:fmt(a.total), sub:`${a.count} resp.`},
+    {label:'Moda', val:a.moda && a.moda.length ? a.moda.map(fmt).join(', ') : 'N/A', sub:'freq.'},
+    {label:'Total', val:fmt(a.total), sub: a.count + ' resp.'},
     {label:'Desvio Padrão', val:fmt(a.desvio_padrao), sub:'σ'},
     {label:'Mínimo', val:fmt(a.min), sub:'menor'},
     {label:'Máximo', val:fmt(a.max), sub:'maior'},
   ];
   const pct = totalR > 0 ? Math.round(numCount / totalR * 100) : 0;
-  document.getElementById('resultadosContent').innerHTML = `
-    <div class="insight-box" style="margin-bottom:1rem">
-      ✓ <strong>${numCount}</strong> resposta(s) válida(s) de <strong>${totalR}</strong> total (${pct}%)
-    </div>
-    <div class="stat-grid">
-      ${cards.map((c,i) => `
-        <div class="stat-card">
-          <div class="stat-bar" style="background:${colors[i]}"></div>
-          <div class="stat-label">${c.label}</div>
-          <div class="stat-value" style="font-size:${c.label==='Moda'?'1.2':'1.8'}rem">${c.val}</div>
-          <div class="stat-sub">${c.sub}</div>
-        </div>`).join('')}
-    </div>
-    <div class="insight-box">
-      📊 Dados do formulário disponíveis na página <a href="/ia" style="color:#166534;font-weight:700">IA</a> e no <a href="/" style="color:#166534;font-weight:700">Dashboard</a>.
-    </div>`;
+  document.getElementById('resultadosContent').innerHTML =
+    '<div class="insight-box" style="margin-bottom:1rem">✓ <strong>' + numCount + '</strong> resposta(s) válida(s) de <strong>' + totalR + '</strong> total (' + pct + '%)</div>' +
+    '<div class="stat-grid">' +
+    cards.map(function(c, i){ return (
+      '<div class="stat-card">' +
+      '<div class="stat-bar" style="background:' + colors[i] + '"></div>' +
+      '<div class="stat-label">' + c.label + '</div>' +
+      '<div class="stat-value" style="font-size:' + (c.label==='Moda'?'1.2':'1.8') + 'rem">' + c.val + '</div>' +
+      '<div class="stat-sub">' + c.sub + '</div>' +
+      '</div>'
+    ); }).join('') +
+    '</div>' +
+    '<div class="insight-box">📊 Dados do formulário disponíveis na página <a href="/ia" style="color:#166534;font-weight:700">IA</a> e no <a href="/" style="color:#166534;font-weight:700">Dashboard</a>.</div>';
 }
 
-// Init: carrega formulário existente ou adiciona primeira pergunta
+function getCookie(name) {
+  let v = document.cookie.match('(^|;) ?' + name + '=([^;]*)(;|$)');
+  return v ? v[2] : '';
+}
+
 {% if formulario %}
-formSalvo = {{ formulario | tojson }};
-// Popula o editor com o formulário existente
+formSalvo = {{ formulario|tojson }};
 perguntas = JSON.parse(JSON.stringify(formSalvo.perguntas || []));
 document.getElementById('fTitulo').value = formSalvo.titulo || '';
 document.getElementById('fDescricao').value = formSalvo.descricao || '';
