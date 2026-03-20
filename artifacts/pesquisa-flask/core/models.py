@@ -26,6 +26,8 @@ class Formulario(models.Model):
             'titulo': self.titulo,
             'descricao': self.descricao,
             'perguntas': perguntas,
+            'total_respostas': self.respostas.count(),
+            'criado_em': self.criado_em.strftime('%d/%m/%Y'),
         }
 
     class Meta:
@@ -99,3 +101,33 @@ class ItemResposta(models.Model):
     class Meta:
         verbose_name = 'Item de Resposta'
         verbose_name_plural = 'Itens de Resposta'
+
+
+class SavedAnalysis(models.Model):
+    name = models.CharField(max_length=300)
+    notes = models.TextField(blank=True, default='')
+    source_type = models.CharField(max_length=20, default='csv')
+    source_name = models.CharField(max_length=300, blank=True, default='')
+    data = models.JSONField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.name
+
+    def to_summary(self):
+        columns = self.data.get('columns', [])
+        return {
+            'id': self.pk,
+            'name': self.name,
+            'notes': self.notes,
+            'source_type': self.source_type,
+            'source_name': self.source_name,
+            'column_count': len(columns),
+            'total_responses': self.data.get('total_responses', 0),
+            'created_at': self.created_at.strftime('%d/%m/%Y %H:%M'),
+        }
+
+    class Meta:
+        verbose_name = 'Análise Salva'
+        verbose_name_plural = 'Análises Salvas'
+        ordering = ['-created_at']

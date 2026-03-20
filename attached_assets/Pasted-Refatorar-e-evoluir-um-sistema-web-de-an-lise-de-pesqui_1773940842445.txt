@@ -1,0 +1,21 @@
+Refatorar e evoluir um sistema web de análise de pesquisas utilizando Django, com foco em organização de código, clareza estrutural, fluxo de dados bem definido e experiência consistente baseada no estado da aplicação.
+
+O projeto deve ser reorganizado seguindo boas práticas do Django, com separação por apps como forms, responses, analytics, ai e core. A estrutura deve distinguir claramente models, views, services e utils. Os nomes de arquivos e pastas devem ser padronizados em inglês, sem abreviações confusas, garantindo legibilidade e manutenção. O sistema deve rodar corretamente com manage.py runserver.
+
+O ambiente local deve ser configurado com SQLite como banco padrão, utilizando um requirements.txt completo e funcional. Deve ser criado um README.md com instruções passo a passo para instalação do Python, criação de ambiente virtual, instalação de dependências, aplicação de migrações e execução do servidor. Para produção, devem ser incluídas instruções completas para uso com PostgreSQL, incluindo instalação, criação de banco e usuário, configuração no settings.py e uso de variáveis de ambiente, deixando clara a separação entre ambiente local e de produção.
+
+O sistema deve possuir um algoritmo de leitura de CSV que interprete o arquivo como um formulário, onde cada coluna representa uma pergunta e cada linha representa uma resposta. As respostas devem ser agrupadas por coluna, e as estatísticas devem ser geradas com base na frequência de respostas iguais, sem depender exclusivamente de valores numéricos. Essa estrutura deve ser reutilizável para uso tanto no dashboard quanto na camada de IA.
+
+Deve existir uma interface de análise manual de dados que permita criar tabelas personalizadas com diferentes tipos de dados, como texto, número e seleção. Essa interface deve ser reutilizada tanto no dashboard quanto na aba de IA, mantendo consistência visual e funcional.
+
+O sistema deve permitir a criação, visualização e gerenciamento de formulários e análises, tratando cada análise como uma entidade independente. O usuário deve conseguir acessar formulários criados, visualizar respostas e revisar os dados antes de publicá-los.
+
+O fluxo principal da aplicação deve ser baseado em estado. Quando não houver nenhuma análise ativa, o sistema permanece em estado livre, permitindo ao usuário inserir arquivos CSV, criar formulários, acessar análises salvas e utilizar outras funcionalidades normalmente.
+
+Quando um arquivo CSV for inserido ou um formulário for aberto para análise, o sistema entra em estado de análise ativa. Nesse momento, toda a interface deve ser contextualizada para os dados dessa análise. No dashboard devem ser exibidos cards com métricas principais e gráficos baseados nos dados carregados. Na aba de pesquisas devem ser exibidas as análises salvas em formato de cards com seus respectivos nomes, permitindo que o usuário abra uma delas, o que iniciará uma nova análise ativa substituindo a atual. Na aba de IA, os dados já devem estar carregados automaticamente, permitindo que o usuário faça perguntas, obtenha insights, interprete resultados e registre anotações sobre a análise.
+
+Durante o estado de análise ativa, não deve ser permitido trabalhar com múltiplas análises simultaneamente. Para iniciar uma nova análise, o usuário deve obrigatoriamente salvar ou descartar a análise atual.
+
+O sistema deve permitir salvar a análise atual com nome e anotações. Após o salvamento, a análise deve ser armazenada e exibida na aba de pesquisas, e o sistema deve retornar ao estado sem análise ativa.
+
+O fluxo de dados deve seguir a seguinte lógica: entrada via CSV ou formulário, processamento estruturando perguntas e respostas, exibição no dashboard com métricas e gráficos, interação com a IA para geração de insights e perguntas, possibilidade de anotações e, por fim, salvamento da análise para acesso futuro.
