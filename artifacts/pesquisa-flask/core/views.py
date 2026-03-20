@@ -3,6 +3,7 @@ import io
 import json
 import logging
 import os
+from collections import Counter
 
 from django.http import JsonResponse
 from django.shortcuts import render
@@ -12,10 +13,6 @@ from django.views.decorators.http import require_http_methods
 from .stats import calcular_estatisticas
 
 logging.basicConfig(level=logging.DEBUG)
-
-formulario_salvo = None
-respostas_armazenadas = []
-ultimo_analise = None
 
 
 def _get_groq_client():
@@ -68,24 +65,34 @@ def _gerar_insight_ia(pergunta, dados):
         return None, str(e)
 
 
-def _perguntas_numericas():
-    if not formulario_salvo:
+def _perguntas_numericas(formulario):
+    if not formulario:
         return [], None
-    perguntas = [p for p in formulario_salvo.get('perguntas', []) if p.get('tipo') == 'numerica']
+    perguntas = [p for p in formulario.get('perguntas', []) if p.get('tipo') == 'numerica']
     principal_id = next((p['id'] for p in perguntas if p.get('principal')), None)
     if not principal_id and perguntas:
         principal_id = perguntas[0]['id']
     return perguntas, principal_id
 
 
-def dashboard(request):
-    global ultimo_analise
-    perguntas_num, pergunta_principal_id = _perguntas_numericas()
-    analise = ultimo_analise
+def _get_state(request):
+    return {
+        'formulario': request.session.get('formulario'),
+        'respostas': request.session.get('respostas', []),
+        'analise': request.session.get('analise'),
+    }
 
-    if not analise and perguntas_num and respostas_armazenadas and pergunta_principal_id:
+
+def dashboard(request):
+    state = _get_state(request)
+    formulario = state['formulario']
+    analise = state['analise']
+
+    perguntas_num, pergunta_principal_id = _perguntas_numericas(formulario)
+
+    if not analise and perguntas_num and state['respostas'] and pergunta_principal_id:
         valores = []
-        for resp in respostas_armazenadas:
+        for resp in state['respostas']:
             for item in resp:
                 if item.get('pergunta_id') == pergunta_principal_id:
                     try:
@@ -104,25 +111,24 @@ def dashboard(request):
 
 
 def pesquisa(request):
-    global formulario_salvo
+    state = _get_state(request)
     return render(request, 'pesquisa.html', {
         'active_page': 'pesquisa',
-        'formulario': formulario_salvo,
+        'formulario': state['formulario'],
     })
 
 
 def ia_page(request):
-    global ultimo_analise
+    state = _get_state(request)
     return render(request, 'ia.html', {
         'active_page': 'ia',
-        'analise': ultimo_analise,
+        'analise': state['analise'],
     })
 
 
 @csrf_exempt
 @require_http_methods(["POST"])
 def analisar(request):
-    global ultimo_analise
     try:
         body = json.loads(request.body)
         numeros = [float(n) for n in body.get('numeros', [])]
@@ -135,14 +141,13 @@ def analisar(request):
         return JsonResponse({'error': 'Máximo de 10.000 números.'}, status=400)
 
     result = calcular_estatisticas(numeros)
-    ultimo_analise = result
+    request.session['analise'] = result
     return JsonResponse(result)
 
 
 @csrf_exempt
 @require_http_methods(["POST"])
 def upload_csv(request):
-    global ultimo_analise
     arquivo = request.FILES.get('arquivo')
     if not arquivo:
         return JsonResponse({'error': 'Nenhum arquivo enviado.'}, status=400)
@@ -170,18 +175,19 @@ def upload_csv(request):
 
     result = calcular_estatisticas(valores)
     result['valores'] = valores
-    ultimo_analise = {k: v for k, v in result.items() if k != 'valores'}
+    analise_salva = {k: v for k, v in result.items() if k != 'valores'}
+    request.session['analise'] = analise_salva
     return JsonResponse(result)
 
 
 @csrf_exempt
 def formulario_api(request):
-    global formulario_salvo
     if request.method == 'GET':
-        if not formulario_salvo:
+        formulario = request.session.get('formulario')
+        if not formulario:
             return JsonResponse({'error': 'Nenhum formulário salvo.'}, status=404)
-        resp = dict(formulario_salvo)
-        resp['total_respostas'] = len(respostas_armazenadas)
+        resp = dict(formulario)
+        resp['total_respostas'] = len(request.session.get('respostas', []))
         return JsonResponse(resp)
 
     elif request.method == 'POST':
@@ -199,13 +205,22 @@ def formulario_api(request):
         for p in perguntas:
             if not p.get('texto', '').strip():
                 return JsonResponse({'error': 'Todas as perguntas precisam de texto.'}, status=400)
+            if p.get('tipo') == 'multipla_escolha':
+                opcoes = p.get('opcoes', [])
+                if len(opcoes) < 2:
+                    return JsonResponse({'error': f'Pergunta de múltipla escolha precisa de ao menos 2 opções.'}, status=400)
+                for op in opcoes:
+                    if not op.get('texto', '').strip():
+                        return JsonResponse({'error': 'Todas as opções precisam ter texto.'}, status=400)
 
-        formulario_salvo = {
+        formulario = {
             'titulo': titulo,
             'descricao': body.get('descricao', ''),
             'perguntas': perguntas,
         }
-        respostas_armazenadas.clear()
+        request.session['formulario'] = formulario
+        request.session['respostas'] = []
+        request.session['analise'] = None
         return JsonResponse({'ok': True, 'mensagem': 'Formulário salvo com sucesso!'})
 
     return JsonResponse({'error': 'Método não suportado.'}, status=405)
@@ -214,8 +229,8 @@ def formulario_api(request):
 @csrf_exempt
 @require_http_methods(["POST"])
 def formulario_responder(request):
-    global formulario_salvo, respostas_armazenadas
-    if not formulario_salvo:
+    formulario = request.session.get('formulario')
+    if not formulario:
         return JsonResponse({'error': 'Nenhum formulário ativo.'}, status=404)
 
     try:
@@ -227,14 +242,14 @@ def formulario_responder(request):
     if not respostas:
         return JsonResponse({'error': 'Nenhuma resposta fornecida.'}, status=400)
 
-    respostas_armazenadas.append(respostas)
+    todas_respostas = request.session.get('respostas', [])
+    todas_respostas.append(respostas)
+    request.session['respostas'] = todas_respostas
+    request.session.modified = True
 
-    numericas = [
-        p for p in formulario_salvo.get('perguntas', [])
-        if p.get('tipo') == 'numerica'
-    ]
+    numericas = [p for p in formulario.get('perguntas', []) if p.get('tipo') == 'numerica']
     valores_num = []
-    for resp in respostas_armazenadas:
+    for resp in todas_respostas:
         for item in resp:
             if any(p['id'] == item.get('pergunta_id') for p in numericas):
                 try:
@@ -243,31 +258,56 @@ def formulario_responder(request):
                     pass
 
     analise = calcular_estatisticas(valores_num) if valores_num else None
+    if analise:
+        request.session['analise'] = analise
 
     return JsonResponse({
         'mensagem': 'Respostas registradas com sucesso!',
-        'total_respostas': len(respostas_armazenadas),
+        'total_respostas': len(todas_respostas),
         'respostas_numericas': len(valores_num),
         'analise': analise,
     })
 
 
 def formulario_dados(request):
-    if not formulario_salvo:
+    formulario = request.session.get('formulario')
+    respostas = request.session.get('respostas', [])
+    if not formulario:
         return JsonResponse({'error': 'Nenhum formulário ativo.'}, status=404)
-    if not respostas_armazenadas:
+    if not respostas:
         return JsonResponse({'error': 'Sem respostas ainda.'}, status=404)
 
     pergunta_id = request.GET.get('pergunta_id')
-    perguntas = formulario_salvo.get('perguntas', [])
+    perguntas = formulario.get('perguntas', [])
     pergunta_obj = next((p for p in perguntas if p['id'] == pergunta_id), None)
 
     if not pergunta_obj:
         return JsonResponse({'error': 'Pergunta não encontrada.'}, status=404)
 
+    total_respostas = len(respostas)
+
+    if pergunta_obj.get('tipo') == 'multipla_escolha':
+        contagem = Counter()
+        for resp in respostas:
+            for item in resp:
+                if item.get('pergunta_id') == pergunta_id:
+                    val = item.get('valor', '').strip()
+                    if val:
+                        contagem[val] += 1
+        opcoes = pergunta_obj.get('opcoes', [])
+        dados_mc = [
+            {'texto': op.get('texto', ''), 'count': contagem.get(op.get('texto', ''), 0)}
+            for op in opcoes
+        ]
+        return JsonResponse({
+            'pergunta': pergunta_obj,
+            'tipo': 'multipla_escolha',
+            'dados_mc': dados_mc,
+            'total_respostas': total_respostas,
+        })
+
     valores = []
-    total_respostas = len(respostas_armazenadas)
-    for resp in respostas_armazenadas:
+    for resp in respostas:
         for item in resp:
             if item.get('pergunta_id') == pergunta_id:
                 try:
@@ -280,11 +320,69 @@ def formulario_dados(request):
 
     return JsonResponse({
         'pergunta': pergunta_obj,
+        'tipo': pergunta_obj.get('tipo', 'numerica'),
         'valores': valores,
         'stats': stats,
         'total_respostas': total_respostas,
         'respostas_validas': len(valores),
         'percentual_validas': pct,
+    })
+
+
+def formulario_analise(request):
+    formulario = request.session.get('formulario')
+    respostas = request.session.get('respostas', [])
+    if not formulario:
+        return JsonResponse({'error': 'Nenhum formulário ativo.'}, status=404)
+
+    perguntas = formulario.get('perguntas', [])
+    resultado = []
+
+    for p in perguntas:
+        pid = p['id']
+        tipo = p.get('tipo')
+
+        if tipo == 'numerica':
+            valores = []
+            for resp in respostas:
+                for item in resp:
+                    if item.get('pergunta_id') == pid:
+                        try:
+                            valores.append(float(item['valor']))
+                        except (ValueError, TypeError):
+                            pass
+            stats = calcular_estatisticas(valores) if valores else None
+            resultado.append({'pergunta': p, 'tipo': tipo, 'stats': stats, 'valores': valores})
+
+        elif tipo == 'multipla_escolha':
+            contagem = Counter()
+            for resp in respostas:
+                for item in resp:
+                    if item.get('pergunta_id') == pid:
+                        val = item.get('valor', '').strip()
+                        if val:
+                            contagem[val] += 1
+            opcoes = p.get('opcoes', [])
+            dados_mc = [
+                {'texto': op.get('texto', ''), 'count': contagem.get(op.get('texto', ''), 0)}
+                for op in opcoes
+            ]
+            resultado.append({'pergunta': p, 'tipo': tipo, 'dados_mc': dados_mc})
+
+        elif tipo == 'texto':
+            textos = []
+            for resp in respostas:
+                for item in resp:
+                    if item.get('pergunta_id') == pid:
+                        val = item.get('valor', '').strip()
+                        if val:
+                            textos.append(val)
+            resultado.append({'pergunta': p, 'tipo': tipo, 'textos': textos})
+
+    return JsonResponse({
+        'formulario': formulario,
+        'total_respostas': len(respostas),
+        'perguntas': resultado,
     })
 
 
@@ -320,7 +418,6 @@ def ia_api(request):
 @csrf_exempt
 @require_http_methods(["POST"])
 def ia_csv(request):
-    global ultimo_analise
     arquivo = request.FILES.get('arquivo')
     if not arquivo:
         return JsonResponse({'error': 'Nenhum arquivo enviado.'}, status=400)
@@ -343,7 +440,7 @@ def ia_csv(request):
         return JsonResponse({'error': 'Nenhum valor numérico encontrado no CSV.'}, status=400)
 
     stats = calcular_estatisticas(valores)
-    ultimo_analise = stats
+    request.session['analise'] = stats
 
     pergunta_auto = (
         f"Analise estes dados do CSV: {stats.get('count')} valores com "

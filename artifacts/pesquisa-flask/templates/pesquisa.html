@@ -66,7 +66,7 @@
           <div class="empty-state">
             <div class="empty-state-icon">📊</div>
             <h3>Nenhum resultado ainda</h3>
-            <p>Envie respostas numéricas no formulário para ver a análise estatística aqui.</p>
+            <p>Envie respostas no formulário para ver a análise estatística aqui.</p>
           </div>
         </div>
       </div>
@@ -81,6 +81,7 @@ let perguntas = [];
 let formSalvo = null;
 let totalEnvios = 0;
 let respostas = {};
+let resultadosChart = null;
 
 function switchTab(tab) {
   const tabs = ['criar','responder','resultados'];
@@ -90,6 +91,7 @@ function switchTab(tab) {
   document.querySelectorAll('.tab-pane').forEach(function(p){ p.classList.remove('active'); });
   document.getElementById('tab-' + tab).classList.add('active');
   if (tab === 'responder') carregarFormulario();
+  if (tab === 'resultados') carregarResultados();
 }
 
 function setPrincipal(id) {
@@ -105,7 +107,13 @@ function setPrincipal(id) {
 
 function addPergunta() {
   const isFirst = perguntas.length === 0;
-  const p = { id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).slice(2), texto: '', tipo: 'numerica', principal: isFirst };
+  const p = {
+    id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).slice(2),
+    texto: '',
+    tipo: 'numerica',
+    principal: isFirst,
+    opcoes: []
+  };
   perguntas.push(p);
   renderPerguntas();
 }
@@ -125,11 +133,37 @@ function onTipoChange(id, novoTipo) {
   if (!p) return;
   const eraNumericaPrincipal = p.principal && p.tipo === 'numerica';
   p.tipo = novoTipo;
-  if (novoTipo === 'texto' && eraNumericaPrincipal) {
+  if (novoTipo !== 'numerica' && eraNumericaPrincipal) {
     p.principal = false;
     const outraNum = perguntas.find(function(q){ return q.tipo === 'numerica' && q.id !== id; });
     if (outraNum) outraNum.principal = true;
   }
+  if (novoTipo === 'multipla_escolha' && (!p.opcoes || p.opcoes.length === 0)) {
+    p.opcoes = [
+      { id: genId(), texto: '' },
+      { id: genId(), texto: '' }
+    ];
+  }
+  renderPerguntas();
+}
+
+function genId() {
+  return (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).slice(2);
+}
+
+function addOpcao(perguntaId) {
+  const p = perguntas.find(function(p){ return p.id === perguntaId; });
+  if (!p) return;
+  if (!p.opcoes) p.opcoes = [];
+  p.opcoes.push({ id: genId(), texto: '' });
+  renderPerguntas();
+}
+
+function removeOpcao(perguntaId, opcaoId) {
+  const p = perguntas.find(function(p){ return p.id === perguntaId; });
+  if (!p || !p.opcoes) return;
+  if (p.opcoes.length <= 2) { showToast('Mínimo de 2 opções.', 'error'); return; }
+  p.opcoes = p.opcoes.filter(function(o){ return o.id !== opcaoId; });
   renderPerguntas();
 }
 
@@ -139,28 +173,57 @@ function escHtml(s) {
 
 function renderPerguntas() {
   document.getElementById('perguntaCount').textContent = perguntas.length + ' pergunta(s)';
-  document.getElementById('perguntasList').innerHTML = perguntas.map(function(p, i){ return (
-    '<div class="question-card ' + (p.principal ? 'question-card-principal' : '') + '">' +
-    '<div class="question-num">' + (i+1) + '.</div>' +
-    '<div class="question-fields">' +
-    '<div class="question-row">' +
-    '<input class="form-control" type="text" placeholder="Texto da pergunta..." value="' + escHtml(p.texto) + '" oninput="perguntas[' + i + '].texto = this.value" />' +
-    '<select class="form-control form-select" style="max-width:175px" onchange="onTipoChange(\'' + p.id + '\', this.value)">' +
-    '<option value="numerica"' + (p.tipo==='numerica'?' selected':'') + '>Numérica</option>' +
-    '<option value="texto"' + (p.tipo==='texto'?' selected':'') + '>Texto livre</option>' +
-    '</select></div>' +
-    (p.tipo === 'numerica' ?
-      '<label class="principal-checkbox ' + (p.principal ? 'is-principal' : '') + '">' +
-      '<input type="radio" name="principal_radio"' + (p.principal ? ' checked' : '') + ' onchange="setPrincipal(\'' + p.id + '\')" />' +
-      '<span class="principal-star">★</span>' +
-      (p.principal ? '<strong>Pergunta Principal</strong>' : 'Marcar como principal') +
-      '</label>'
-      : '<span class="tipo-texto-label">Texto livre — não disponível para análise estatística</span>') +
-    '</div>' +
-    '<button class="btn-icon" onclick="removePergunta(\'' + p.id + '\')" title="Remover">' +
-    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>' +
-    '</button></div>'
-  ); }).join('');
+  document.getElementById('perguntasList').innerHTML = perguntas.map(function(p, i) {
+    let extras = '';
+    if (p.tipo === 'numerica') {
+      extras = '<label class="principal-checkbox ' + (p.principal ? 'is-principal' : '') + '">' +
+        '<input type="radio" name="principal_radio"' + (p.principal ? ' checked' : '') + ' onchange="setPrincipal(\'' + p.id + '\')" />' +
+        '<span class="principal-star">★</span>' +
+        (p.principal ? '<strong>Pergunta Principal</strong>' : 'Marcar como principal') +
+        '</label>';
+    } else if (p.tipo === 'multipla_escolha') {
+      const opcoes = p.opcoes || [];
+      extras = '<div class="opcoes-list" id="opcoes_' + p.id + '">' +
+        opcoes.map(function(op, oi) {
+          return '<div class="opcao-row">' +
+            '<span class="opcao-letra">' + String.fromCharCode(65 + oi) + ')</span>' +
+            '<input class="form-control" type="text" placeholder="Texto da opção..." value="' + escHtml(op.texto) + '" ' +
+            'oninput="updateOpcao(\'' + p.id + '\',\'' + op.id + '\',this.value)" />' +
+            '<button class="btn-icon" onclick="removeOpcao(\'' + p.id + '\',\'' + op.id + '\')" title="Remover opção">' +
+            '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
+            '</button></div>';
+        }).join('') +
+        '</div>' +
+        '<button class="btn btn-outline btn-sm" style="margin-top:.35rem;font-size:.78rem" onclick="addOpcao(\'' + p.id + '\')">' +
+        '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>' +
+        ' Adicionar opção</button>';
+    } else {
+      extras = '<span class="tipo-texto-label">Texto livre — não disponível para análise estatística</span>';
+    }
+
+    return '<div class="question-card ' + (p.principal ? 'question-card-principal' : '') + '">' +
+      '<div class="question-num">' + (i+1) + '.</div>' +
+      '<div class="question-fields">' +
+      '<div class="question-row">' +
+      '<input class="form-control" type="text" placeholder="Texto da pergunta..." value="' + escHtml(p.texto) + '" oninput="perguntas[' + i + '].texto = this.value" />' +
+      '<select class="form-control form-select" style="max-width:190px" onchange="onTipoChange(\'' + p.id + '\', this.value)">' +
+      '<option value="numerica"' + (p.tipo==='numerica'?' selected':'') + '>Numérica</option>' +
+      '<option value="multipla_escolha"' + (p.tipo==='multipla_escolha'?' selected':'') + '>Múltipla escolha</option>' +
+      '<option value="texto"' + (p.tipo==='texto'?' selected':'') + '>Texto livre</option>' +
+      '</select></div>' +
+      extras +
+      '</div>' +
+      '<button class="btn-icon" onclick="removePergunta(\'' + p.id + '\')" title="Remover">' +
+      '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>' +
+      '</button></div>';
+  }).join('');
+}
+
+function updateOpcao(perguntaId, opcaoId, valor) {
+  const p = perguntas.find(function(p){ return p.id === perguntaId; });
+  if (!p || !p.opcoes) return;
+  const op = p.opcoes.find(function(o){ return o.id === opcaoId; });
+  if (op) op.texto = valor;
 }
 
 async function salvarFormulario() {
@@ -168,6 +231,13 @@ async function salvarFormulario() {
   if (!titulo) { showToast('Título é obrigatório.', 'error'); return; }
   if (!perguntas.length) { showToast('Adicione ao menos uma pergunta.', 'error'); return; }
   if (perguntas.some(function(p){ return !p.texto.trim(); })) { showToast('Preencha o texto de todas as perguntas.', 'error'); return; }
+  for (const p of perguntas) {
+    if (p.tipo === 'multipla_escolha') {
+      const opcoes = p.opcoes || [];
+      if (opcoes.length < 2) { showToast('Múltipla escolha precisa de ao menos 2 opções.', 'error'); return; }
+      if (opcoes.some(function(o){ return !o.texto.trim(); })) { showToast('Preencha o texto de todas as opções.', 'error'); return; }
+    }
+  }
   const numericas = perguntas.filter(function(p){ return p.tipo === 'numerica'; });
   if (numericas.length > 0 && !numericas.some(function(p){ return p.principal; })) numericas[0].principal = true;
   const body = { titulo: titulo, descricao: document.getElementById('fDescricao').value, perguntas: perguntas };
@@ -194,17 +264,29 @@ async function carregarFormulario() {
     (form.descricao ? '<p class="text-muted text-sm mt-1">' + escHtml(form.descricao) + '</p>' : '') +
     '<span style="font-size:.8rem;color:#10b981;font-weight:600;display:block;margin-top:.4rem">' + form.total_respostas + ' envio(s) registrado(s)</span>' +
     '</div>' +
-    form.perguntas.map(function(q, i){ return (
-      '<div class="responder-question">' +
-      '<label>' + (i+1) + '. ' + escHtml(q.texto) +
-      '<span class="tipo-tag">' + q.tipo + '</span>' +
-      (q.principal ? '<span class="principal-tag">★ Principal</span>' : '') +
-      '</label>' +
-      (q.tipo === 'numerica'
-        ? '<input class="form-control" type="number" step="any" placeholder="0" id="resp_' + q.id + '" oninput="respostas[\'' + q.id + '\'] = this.value" />'
-        : '<input class="form-control" type="text" placeholder="Sua resposta..." id="resp_' + q.id + '" oninput="respostas[\'' + q.id + '\'] = this.value" />') +
-      '</div>'
-    ); }).join('') +
+    form.perguntas.map(function(q, i) {
+      let inputHtml = '';
+      if (q.tipo === 'numerica') {
+        inputHtml = '<input class="form-control" type="number" step="any" placeholder="0" id="resp_' + q.id + '" oninput="respostas[\'' + q.id + '\'] = this.value" />';
+      } else if (q.tipo === 'multipla_escolha') {
+        const opts = q.opcoes || [];
+        inputHtml = '<div class="opcoes-radio">' +
+          opts.map(function(op, oi) {
+            return '<label class="opcao-radio-label">' +
+              '<input type="radio" name="radio_' + q.id + '" value="' + escHtml(op.texto) + '" onchange="respostas[\'' + q.id + '\'] = this.value" />' +
+              '<span class="opcao-radio-text">' + String.fromCharCode(65 + oi) + ') ' + escHtml(op.texto) + '</span>' +
+              '</label>';
+          }).join('') +
+          '</div>';
+      } else {
+        inputHtml = '<input class="form-control" type="text" placeholder="Sua resposta..." id="resp_' + q.id + '" oninput="respostas[\'' + q.id + '\'] = this.value" />';
+      }
+      return '<div class="responder-question">' +
+        '<label>' + (i+1) + '. ' + escHtml(q.texto) +
+        '<span class="tipo-tag">' + (q.tipo === 'multipla_escolha' ? 'múltipla' : q.tipo) + '</span>' +
+        (q.principal ? '<span class="principal-tag">★ Principal</span>' : '') +
+        '</label>' + inputHtml + '</div>';
+    }).join('') +
     '<button class="btn btn-primary w-full" onclick="enviarRespostas()">' +
     '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>' +
     'Enviar Respostas</button>';
@@ -218,42 +300,120 @@ async function enviarRespostas() {
   if (!r.ok) { showToast(d.error, 'error'); return; }
   showToast(d.mensagem, 'success');
   formSalvo.perguntas.forEach(function(q){
-    const el = document.getElementById('resp_' + q.id);
-    if (el) el.value = '';
+    if (q.tipo !== 'multipla_escolha') {
+      const el = document.getElementById('resp_' + q.id);
+      if (el) el.value = '';
+    } else {
+      document.querySelectorAll('input[name="radio_' + q.id + '"]').forEach(function(r){ r.checked = false; });
+    }
     respostas[q.id] = '';
   });
   totalEnvios++;
-  if (d.analise) {
-    renderResultados(d.analise, d.respostas_numericas, d.total_respostas);
-    switchTab('resultados');
-  }
+  switchTab('resultados');
+  await carregarResultados();
 }
 
-function renderResultados(a, numCount, totalR) {
-  const colors = ['#2563eb','#7c3aed','#0891b2','#6366f1','#f59e0b','#16a34a','#dc2626'];
-  const cards = [
-    {label:'Média', val:fmt(a.media), sub:'avg'},
-    {label:'Mediana', val:fmt(a.mediana), sub:'mid'},
-    {label:'Moda', val:a.moda && a.moda.length ? a.moda.map(fmt).join(', ') : 'N/A', sub:'freq.'},
-    {label:'Total', val:fmt(a.total), sub: a.count + ' resp.'},
-    {label:'Desvio Padrão', val:fmt(a.desvio_padrao), sub:'σ'},
-    {label:'Mínimo', val:fmt(a.min), sub:'menor'},
-    {label:'Máximo', val:fmt(a.max), sub:'maior'},
-  ];
-  const pct = totalR > 0 ? Math.round(numCount / totalR * 100) : 0;
-  document.getElementById('resultadosContent').innerHTML =
-    '<div class="insight-box" style="margin-bottom:1rem">✓ <strong>' + numCount + '</strong> resposta(s) válida(s) de <strong>' + totalR + '</strong> total (' + pct + '%)</div>' +
-    '<div class="stat-grid">' +
-    cards.map(function(c, i){ return (
-      '<div class="stat-card">' +
-      '<div class="stat-bar" style="background:' + colors[i] + '"></div>' +
-      '<div class="stat-label">' + c.label + '</div>' +
-      '<div class="stat-value" style="font-size:' + (c.label==='Moda'?'1.2':'1.8') + 'rem">' + c.val + '</div>' +
-      '<div class="stat-sub">' + c.sub + '</div>' +
-      '</div>'
-    ); }).join('') +
-    '</div>' +
-    '<div class="insight-box">📊 Dados do formulário disponíveis na página <a href="/ia" style="color:#166534;font-weight:700">IA</a> e no <a href="/" style="color:#166534;font-weight:700">Dashboard</a>.</div>';
+async function carregarResultados() {
+  const r = await fetch('/formulario/analise');
+  if (!r.ok) {
+    document.getElementById('resultadosContent').innerHTML =
+      '<div class="card"><div class="card-body"><div class="empty-state"><div class="empty-state-icon">📊</div><h3>Nenhum resultado ainda</h3><p>Envie respostas no formulário para ver a análise aqui.</p></div></div></div>';
+    return;
+  }
+  const d = await r.json();
+  if (d.total_respostas === 0) {
+    document.getElementById('resultadosContent').innerHTML =
+      '<div class="card"><div class="card-body"><div class="empty-state"><div class="empty-state-icon">📊</div><h3>Nenhum resultado ainda</h3><p>Envie respostas no formulário para ver a análise aqui.</p></div></div></div>';
+    return;
+  }
+  let html = '<div class="insight-box" style="margin-bottom:1rem">✓ <strong>' + d.total_respostas + '</strong> envio(s) registrado(s)</div>';
+  d.perguntas.forEach(function(item) {
+    const p = item.pergunta;
+    html += '<div class="card" style="margin-bottom:1rem"><div class="card-body">';
+    html += '<div style="font-weight:700;color:#0f172a;margin-bottom:.75rem;font-size:.95rem">' + escHtml(p.texto) + '</div>';
+    if (item.tipo === 'numerica' && item.stats) {
+      const a = item.stats;
+      const colors = ['#2563eb','#7c3aed','#0891b2','#6366f1','#f59e0b','#16a34a','#dc2626'];
+      const cards = [
+        {label:'Média', val:fmt(a.media), sub:'avg'},
+        {label:'Mediana', val:fmt(a.mediana), sub:'mid'},
+        {label:'Moda', val:a.moda && a.moda.length ? a.moda.map(fmt).join(', ') : 'N/A', sub:'freq.'},
+        {label:'Total', val:fmt(a.total), sub: a.count + ' resp.'},
+        {label:'Desvio Padrão', val:fmt(a.desvio_padrao), sub:'σ'},
+        {label:'Mínimo', val:fmt(a.min), sub:'menor'},
+        {label:'Máximo', val:fmt(a.max), sub:'maior'},
+      ];
+      html += '<div class="stat-grid" style="grid-template-columns:repeat(auto-fill,minmax(130px,1fr));margin-bottom:.75rem">' +
+        cards.map(function(c, i){ return (
+          '<div class="stat-card">' +
+          '<div class="stat-bar" style="background:' + colors[i] + '"></div>' +
+          '<div class="stat-label">' + c.label + '</div>' +
+          '<div class="stat-value" style="font-size:' + (c.label==='Moda'?'1.1':'1.5') + 'rem">' + c.val + '</div>' +
+          '<div class="stat-sub">' + c.sub + '</div></div>'
+        ); }).join('') + '</div>';
+      if (item.valores && item.valores.length > 0) {
+        const chartId = 'chart_' + p.id;
+        html += '<canvas id="' + chartId + '" style="max-height:180px"></canvas>';
+        setTimeout(function() {
+          const ctx = document.getElementById(chartId);
+          if (!ctx) return;
+          const vals = item.valores;
+          let labels, data, bgColors;
+          if (vals.length <= 20) {
+            labels = vals.map(function(_, i){ return 'R'+(i+1); });
+            data = vals;
+            bgColors = vals.map(function(v){ return intensityColor(v, a.min, a.max); });
+          } else {
+            const fm = {};
+            vals.forEach(function(v){ fm[v]=(fm[v]||0)+1; });
+            const sorted = Object.keys(fm).map(Number).sort(function(a,b){return a-b;});
+            labels = sorted.map(String);
+            data = sorted.map(function(v){ return fm[v]; });
+            bgColors = sorted.map(function(v){ return intensityColor(v, a.min, a.max); });
+          }
+          new Chart(ctx, { type:'bar', data:{labels:labels,datasets:[{data:data,backgroundColor:bgColors,borderRadius:5,borderSkipped:false}]}, options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{precision:0}},x:{grid:{display:false}}}} });
+        }, 50);
+      }
+    } else if (item.tipo === 'multipla_escolha' && item.dados_mc) {
+      const chartId = 'chart_mc_' + p.id;
+      const total = item.dados_mc.reduce(function(s, o){ return s + o.count; }, 0);
+      html += '<div style="margin-bottom:.75rem">';
+      item.dados_mc.forEach(function(op, i) {
+        const pct = total > 0 ? Math.round(op.count / total * 100) : 0;
+        html += '<div style="margin-bottom:.5rem">' +
+          '<div style="display:flex;justify-content:space-between;font-size:.85rem;font-weight:600;margin-bottom:.2rem">' +
+          '<span>' + String.fromCharCode(65+i) + ') ' + escHtml(op.texto) + '</span>' +
+          '<span style="color:#64748b">' + op.count + ' (' + pct + '%)</span></div>' +
+          '<div style="background:#f1f5f9;border-radius:99px;height:8px">' +
+          '<div style="background:linear-gradient(90deg,#4f46e5,#6366f1);width:' + pct + '%;height:8px;border-radius:99px;transition:width .6s"></div>' +
+          '</div></div>';
+      });
+      html += '</div>';
+      if (total > 0) {
+        html += '<canvas id="' + chartId + '" style="max-height:180px"></canvas>';
+        setTimeout(function() {
+          const ctx = document.getElementById(chartId);
+          if (!ctx) return;
+          const palette = ['#4f46e5','#06b6d4','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899'];
+          new Chart(ctx, { type:'doughnut', data:{labels:item.dados_mc.map(function(o){return o.texto;}),datasets:[{data:item.dados_mc.map(function(o){return o.count;}),backgroundColor:item.dados_mc.map(function(_,i){return palette[i%palette.length];}),borderWidth:2,borderColor:'#fff'}]}, options:{responsive:true,plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:11}}}}} });
+        }, 50);
+      }
+    } else if (item.tipo === 'texto') {
+      if (item.textos && item.textos.length > 0) {
+        html += '<div style="display:flex;flex-direction:column;gap:.4rem">' +
+          item.textos.map(function(t) {
+            return '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:.5rem;padding:.5rem .75rem;font-size:.88rem;color:#374151">' + escHtml(t) + '</div>';
+          }).join('') + '</div>';
+      } else {
+        html += '<p class="text-sm text-muted">Nenhuma resposta textual ainda.</p>';
+      }
+    } else {
+      html += '<p class="text-sm text-muted">Nenhuma resposta registrada ainda para essa pergunta.</p>';
+    }
+    html += '</div></div>';
+  });
+  html += '<div class="insight-box">📊 Dados disponíveis no <a href="/" style="color:#166534;font-weight:700">Dashboard</a> e na página de <a href="/ia" style="color:#166534;font-weight:700">IA</a>.</div>';
+  document.getElementById('resultadosContent').innerHTML = html;
 }
 
 function getCookie(name) {
@@ -264,6 +424,7 @@ function getCookie(name) {
 {% if formulario %}
 formSalvo = {{ formulario|tojson }};
 perguntas = JSON.parse(JSON.stringify(formSalvo.perguntas || []));
+perguntas.forEach(function(p){ if (!p.opcoes) p.opcoes = []; });
 document.getElementById('fTitulo').value = formSalvo.titulo || '';
 document.getElementById('fDescricao').value = formSalvo.descricao || '';
 renderPerguntas();

@@ -27,18 +27,6 @@ author = "agent"
 task = "workflow.run"
 args = "Pesquisa AI — Flask (Python)"
 
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Start API Server"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Start Pesquisa AI"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Start application"
-
 [[workflows.workflow]]
 name = "Pesquisa AI — Flask (Python)"
 author = "agent"
@@ -49,39 +37,6 @@ outputType = "webview"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "cd artifacts/pesquisa-flask && gunicorn --bind 0.0.0.0:5000 --reuse-port --reload config.wsgi:application"
-waitForPort = 5000
-
-[[workflows.workflow]]
-name = "Start API Server"
-author = "agent"
-
-[workflows.workflow.metadata]
-outputType = "console"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "PORT=8080 pnpm --filter @workspace/api-server run dev"
-waitForPort = 8080
-
-[[workflows.workflow]]
-name = "Start Pesquisa AI"
-author = "agent"
-
-[workflows.workflow.metadata]
-outputType = "console"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "PORT=5173 BASE_PATH=\"/\" pnpm --filter @workspace/pesquisa-ai run dev"
-waitForPort = 5173
-
-[[workflows.workflow]]
-name = "Start application"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "gunicorn --bind 0.0.0.0:5000 --reuse-port --reload main:app"
 waitForPort = 5000
 
 [agent]
