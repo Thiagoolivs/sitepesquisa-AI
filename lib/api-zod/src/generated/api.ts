@@ -8,7 +8,6 @@
 import * as zod from "zod";
 
 /**
- * Returns server health status
  * @summary Health check
  */
 export const HealthCheckResponse = zod.object({
@@ -16,44 +15,150 @@ export const HealthCheckResponse = zod.object({
 });
 
 /**
- * Calculates statistical metrics from a list of numbers
  * @summary Analyze numbers
  */
 export const AnalisarBody = zod.object({
-  numeros: zod.array(zod.number()).describe("List of numbers to analyze"),
+  numeros: zod.array(zod.number()),
 });
 
 export const AnalisarResponse = zod.object({
-  media: zod.number().describe("Mean (average)"),
-  mediana: zod.number().describe("Median"),
-  moda: zod.array(zod.number()).describe("Mode (most frequent values)"),
-  total: zod.number().describe("Sum of all numbers"),
-  count: zod.number().describe("Count of numbers"),
-  min: zod.number().describe("Minimum value"),
-  max: zod.number().describe("Maximum value"),
-  desvio_padrao: zod.number().describe("Standard deviation"),
+  media: zod.number(),
+  mediana: zod.number(),
+  moda: zod.array(zod.number()),
+  total: zod.number(),
+  count: zod.number(),
+  min: zod.number(),
+  max: zod.number(),
+  desvio_padrao: zod.number(),
 });
 
 /**
- * Sends statistical data to an AI model and returns a textual analysis
+ * @summary Upload and analyze CSV file
+ */
+export const UploadCsvBody = zod.object({
+  arquivo: zod.instanceof(File),
+});
+
+export const UploadCsvResponse = zod.object({
+  media: zod.number(),
+  mediana: zod.number(),
+  moda: zod.array(zod.number()),
+  total: zod.number(),
+  count: zod.number(),
+  min: zod.number(),
+  max: zod.number(),
+  desvio_padrao: zod.number(),
+});
+
+/**
  * @summary AI analysis
  */
 export const IaAnaliseBody = zod.object({
-  pergunta: zod.string().describe("User question or context for the AI"),
+  pergunta: zod.string(),
   dados: zod
     .object({
-      media: zod.number().describe("Mean (average)"),
-      mediana: zod.number().describe("Median"),
-      moda: zod.array(zod.number()).describe("Mode (most frequent values)"),
-      total: zod.number().describe("Sum of all numbers"),
-      count: zod.number().describe("Count of numbers"),
-      min: zod.number().describe("Minimum value"),
-      max: zod.number().describe("Maximum value"),
-      desvio_padrao: zod.number().describe("Standard deviation"),
+      media: zod.number(),
+      mediana: zod.number(),
+      moda: zod.array(zod.number()),
+      total: zod.number(),
+      count: zod.number(),
+      min: zod.number(),
+      max: zod.number(),
+      desvio_padrao: zod.number(),
     })
     .optional(),
 });
 
 export const IaAnaliseResponse = zod.object({
-  resposta: zod.string().describe("AI-generated analysis text"),
+  resposta: zod.string(),
+});
+
+/**
+ * @summary Save a form
+ */
+export const SalvarFormularioBody = zod.object({
+  titulo: zod.string(),
+  descricao: zod.string().optional(),
+  perguntas: zod.array(
+    zod.object({
+      id: zod.string(),
+      texto: zod.string(),
+      tipo: zod.enum(["texto", "numerica", "multipla"]),
+      opcoes: zod.array(zod.string()).optional(),
+    }),
+  ),
+});
+
+export const SalvarFormularioResponse = zod.object({
+  titulo: zod.string(),
+  descricao: zod.string().optional(),
+  perguntas: zod.array(
+    zod.object({
+      id: zod.string(),
+      texto: zod.string(),
+      tipo: zod.enum(["texto", "numerica", "multipla"]),
+      opcoes: zod.array(zod.string()).optional(),
+    }),
+  ),
+  total_respostas: zod.number(),
+});
+
+/**
+ * @summary Get the saved form
+ */
+export const GetFormularioResponse = zod.object({
+  titulo: zod.string(),
+  descricao: zod.string().optional(),
+  perguntas: zod.array(
+    zod.object({
+      id: zod.string(),
+      texto: zod.string(),
+      tipo: zod.enum(["texto", "numerica", "multipla"]),
+      opcoes: zod.array(zod.string()).optional(),
+    }),
+  ),
+  total_respostas: zod.number(),
+});
+
+/**
+ * @summary Submit form responses
+ */
+export const ResponderFormularioBody = zod.object({
+  respostas: zod.array(
+    zod.object({
+      pergunta_id: zod.string(),
+      valor: zod.string(),
+    }),
+  ),
+});
+
+export const ResponderFormularioResponse = zod.object({
+  mensagem: zod.string(),
+  respostas_numericas: zod.number(),
+  analise: zod
+    .object({
+      media: zod.number(),
+      mediana: zod.number(),
+      moda: zod.array(zod.number()),
+      total: zod.number(),
+      count: zod.number(),
+      min: zod.number(),
+      max: zod.number(),
+      desvio_padrao: zod.number(),
+    })
+    .optional(),
+});
+
+/**
+ * @summary Get statistical analysis of form numeric responses
+ */
+export const GetFormularioAnaliseResponse = zod.object({
+  media: zod.number(),
+  mediana: zod.number(),
+  moda: zod.array(zod.number()),
+  total: zod.number(),
+  count: zod.number(),
+  min: zod.number(),
+  max: zod.number(),
+  desvio_padrao: zod.number(),
 });

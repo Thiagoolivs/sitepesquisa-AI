@@ -7,7 +7,8 @@
  */
 import type { AnalisarResult } from "./analisarResult";
 
-export interface IaInput {
-  pergunta: string;
-  dados?: AnalisarResult;
+export interface FormRespostaResult {
+  mensagem: string;
+  respostas_numericas: number;
+  analise?: AnalisarResult;
 }

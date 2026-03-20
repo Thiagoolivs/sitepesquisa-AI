@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface AnalisarInput {
-  numeros: number[];
+export interface FormResposta {
+  pergunta_id: string;
+  valor: string;
 }

@@ -20,9 +20,14 @@ import type {
   AnalisarInput,
   AnalisarResult,
   ErrorResponse,
+  FormRespostaInput,
+  FormRespostaResult,
+  FormularioInput,
+  FormularioResult,
   HealthStatus,
   IaInput,
   IaResult,
+  UploadCsvBody,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -35,7 +40,6 @@ type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 /**
- * Returns server health status
  * @summary Health check
  */
 export const getHealthCheckUrl = () => {
@@ -111,7 +115,6 @@ export function useHealthCheck<
 }
 
 /**
- * Calculates statistical metrics from a list of numbers
  * @summary Analyze numbers
  */
 export const getAnalisarUrl = () => {
@@ -198,7 +201,94 @@ export const useAnalisar = <
 };
 
 /**
- * Sends statistical data to an AI model and returns a textual analysis
+ * @summary Upload and analyze CSV file
+ */
+export const getUploadCsvUrl = () => {
+  return `/api/upload_csv`;
+};
+
+export const uploadCsv = async (
+  uploadCsvBody: UploadCsvBody,
+  options?: RequestInit,
+): Promise<AnalisarResult> => {
+  const formData = new FormData();
+  formData.append(`arquivo`, uploadCsvBody.arquivo);
+
+  return customFetch<AnalisarResult>(getUploadCsvUrl(), {
+    ...options,
+    method: "POST",
+    body: formData,
+  });
+};
+
+export const getUploadCsvMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof uploadCsv>>,
+    TError,
+    { data: BodyType<UploadCsvBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof uploadCsv>>,
+  TError,
+  { data: BodyType<UploadCsvBody> },
+  TContext
+> => {
+  const mutationKey = ["uploadCsv"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof uploadCsv>>,
+    { data: BodyType<UploadCsvBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return uploadCsv(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UploadCsvMutationResult = NonNullable<
+  Awaited<ReturnType<typeof uploadCsv>>
+>;
+export type UploadCsvMutationBody = BodyType<UploadCsvBody>;
+export type UploadCsvMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Upload and analyze CSV file
+ */
+export const useUploadCsv = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof uploadCsv>>,
+    TError,
+    { data: BodyType<UploadCsvBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof uploadCsv>>,
+  TError,
+  { data: BodyType<UploadCsvBody> },
+  TContext
+> => {
+  return useMutation(getUploadCsvMutationOptions(options));
+};
+
+/**
  * @summary AI analysis
  */
 export const getIaAnaliseUrl = () => {
@@ -283,3 +373,325 @@ export const useIaAnalise = <
 > => {
   return useMutation(getIaAnaliseMutationOptions(options));
 };
+
+/**
+ * @summary Save a form
+ */
+export const getSalvarFormularioUrl = () => {
+  return `/api/formulario`;
+};
+
+export const salvarFormulario = async (
+  formularioInput: FormularioInput,
+  options?: RequestInit,
+): Promise<FormularioResult> => {
+  return customFetch<FormularioResult>(getSalvarFormularioUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(formularioInput),
+  });
+};
+
+export const getSalvarFormularioMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof salvarFormulario>>,
+    TError,
+    { data: BodyType<FormularioInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof salvarFormulario>>,
+  TError,
+  { data: BodyType<FormularioInput> },
+  TContext
+> => {
+  const mutationKey = ["salvarFormulario"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof salvarFormulario>>,
+    { data: BodyType<FormularioInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return salvarFormulario(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SalvarFormularioMutationResult = NonNullable<
+  Awaited<ReturnType<typeof salvarFormulario>>
+>;
+export type SalvarFormularioMutationBody = BodyType<FormularioInput>;
+export type SalvarFormularioMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Save a form
+ */
+export const useSalvarFormulario = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof salvarFormulario>>,
+    TError,
+    { data: BodyType<FormularioInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof salvarFormulario>>,
+  TError,
+  { data: BodyType<FormularioInput> },
+  TContext
+> => {
+  return useMutation(getSalvarFormularioMutationOptions(options));
+};
+
+/**
+ * @summary Get the saved form
+ */
+export const getGetFormularioUrl = () => {
+  return `/api/formulario`;
+};
+
+export const getFormulario = async (
+  options?: RequestInit,
+): Promise<FormularioResult> => {
+  return customFetch<FormularioResult>(getGetFormularioUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetFormularioQueryKey = () => {
+  return [`/api/formulario`] as const;
+};
+
+export const getGetFormularioQueryOptions = <
+  TData = Awaited<ReturnType<typeof getFormulario>>,
+  TError = ErrorType<ErrorResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getFormulario>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetFormularioQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getFormulario>>> = ({
+    signal,
+  }) => getFormulario({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getFormulario>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetFormularioQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getFormulario>>
+>;
+export type GetFormularioQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Get the saved form
+ */
+
+export function useGetFormulario<
+  TData = Awaited<ReturnType<typeof getFormulario>>,
+  TError = ErrorType<ErrorResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getFormulario>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetFormularioQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Submit form responses
+ */
+export const getResponderFormularioUrl = () => {
+  return `/api/formulario/responder`;
+};
+
+export const responderFormulario = async (
+  formRespostaInput: FormRespostaInput,
+  options?: RequestInit,
+): Promise<FormRespostaResult> => {
+  return customFetch<FormRespostaResult>(getResponderFormularioUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(formRespostaInput),
+  });
+};
+
+export const getResponderFormularioMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof responderFormulario>>,
+    TError,
+    { data: BodyType<FormRespostaInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof responderFormulario>>,
+  TError,
+  { data: BodyType<FormRespostaInput> },
+  TContext
+> => {
+  const mutationKey = ["responderFormulario"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof responderFormulario>>,
+    { data: BodyType<FormRespostaInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return responderFormulario(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ResponderFormularioMutationResult = NonNullable<
+  Awaited<ReturnType<typeof responderFormulario>>
+>;
+export type ResponderFormularioMutationBody = BodyType<FormRespostaInput>;
+export type ResponderFormularioMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Submit form responses
+ */
+export const useResponderFormulario = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof responderFormulario>>,
+    TError,
+    { data: BodyType<FormRespostaInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof responderFormulario>>,
+  TError,
+  { data: BodyType<FormRespostaInput> },
+  TContext
+> => {
+  return useMutation(getResponderFormularioMutationOptions(options));
+};
+
+/**
+ * @summary Get statistical analysis of form numeric responses
+ */
+export const getGetFormularioAnaliseUrl = () => {
+  return `/api/formulario/analise`;
+};
+
+export const getFormularioAnalise = async (
+  options?: RequestInit,
+): Promise<AnalisarResult> => {
+  return customFetch<AnalisarResult>(getGetFormularioAnaliseUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetFormularioAnaliseQueryKey = () => {
+  return [`/api/formulario/analise`] as const;
+};
+
+export const getGetFormularioAnaliseQueryOptions = <
+  TData = Awaited<ReturnType<typeof getFormularioAnalise>>,
+  TError = ErrorType<ErrorResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getFormularioAnalise>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetFormularioAnaliseQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getFormularioAnalise>>
+  > = ({ signal }) => getFormularioAnalise({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getFormularioAnalise>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetFormularioAnaliseQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getFormularioAnalise>>
+>;
+export type GetFormularioAnaliseQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Get statistical analysis of form numeric responses
+ */
+
+export function useGetFormularioAnalise<
+  TData = Awaited<ReturnType<typeof getFormularioAnalise>>,
+  TError = ErrorType<ErrorResponse>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getFormularioAnalise>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetFormularioAnaliseQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}

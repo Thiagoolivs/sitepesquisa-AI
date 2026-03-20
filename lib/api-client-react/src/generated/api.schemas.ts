@@ -10,40 +10,77 @@ export interface HealthStatus {
 }
 
 export interface AnalisarInput {
-  /** List of numbers to analyze */
   numeros: number[];
 }
 
 export interface AnalisarResult {
-  /** Mean (average) */
   media: number;
-  /** Median */
   mediana: number;
-  /** Mode (most frequent values) */
   moda: number[];
-  /** Sum of all numbers */
   total: number;
-  /** Count of numbers */
   count: number;
-  /** Minimum value */
   min: number;
-  /** Maximum value */
   max: number;
-  /** Standard deviation */
   desvio_padrao: number;
 }
 
 export interface IaInput {
-  /** User question or context for the AI */
   pergunta: string;
   dados?: AnalisarResult;
 }
 
 export interface IaResult {
-  /** AI-generated analysis text */
   resposta: string;
 }
 
 export interface ErrorResponse {
   error: string;
 }
+
+export type FormularioPerguntaTipo =
+  (typeof FormularioPerguntaTipo)[keyof typeof FormularioPerguntaTipo];
+
+export const FormularioPerguntaTipo = {
+  texto: "texto",
+  numerica: "numerica",
+  multipla: "multipla",
+} as const;
+
+export interface FormularioPergunta {
+  id: string;
+  texto: string;
+  tipo: FormularioPerguntaTipo;
+  opcoes?: string[];
+}
+
+export interface FormularioInput {
+  titulo: string;
+  descricao?: string;
+  perguntas: FormularioPergunta[];
+}
+
+export interface FormularioResult {
+  titulo: string;
+  descricao?: string;
+  perguntas: FormularioPergunta[];
+  total_respostas: number;
+}
+
+export interface FormResposta {
+  pergunta_id: string;
+  valor: string;
+}
+
+export interface FormRespostaInput {
+  respostas: FormResposta[];
+}
+
+export interface FormRespostaResult {
+  mensagem: string;
+  respostas_numericas: number;
+  analise?: AnalisarResult;
+}
+
+export type UploadCsvBody = {
+  arquivo: Blob;
+};

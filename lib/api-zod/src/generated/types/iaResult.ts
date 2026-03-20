@@ -7,6 +7,5 @@
  */
 
 export interface IaResult {
-  /** AI-generated analysis text */
   resposta: string;
 }

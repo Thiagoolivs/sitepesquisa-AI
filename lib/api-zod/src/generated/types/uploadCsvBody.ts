@@ -6,6 +6,6 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface AnalisarInput {
-  numeros: number[];
-}
+export type UploadCsvBody = {
+  arquivo: Blob;
+};

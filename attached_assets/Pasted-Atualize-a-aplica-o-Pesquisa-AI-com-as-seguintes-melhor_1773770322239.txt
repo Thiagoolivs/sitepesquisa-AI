@@ -1,0 +1,124 @@
+Atualize a aplicação "Pesquisa AI" com as seguintes melhorias:
+
+========================
+NOVA FUNCIONALIDADE 1 — UPLOAD DE CSV
+========================
+
+Adicionar no Dashboard ou em uma seção própria:
+
+Frontend:
+- Input de arquivo:
+  <input type="file" accept=".csv">
+- Botão "Analisar CSV"
+
+Comportamento:
+- Enviar arquivo para rota POST /upload_csv usando FormData
+- Após resposta, atualizar dashboard com os dados analisados
+
+Backend (Flask):
+- Criar rota POST /upload_csv
+- Ler arquivo CSV recebido
+- Converter valores numéricos ignorando textos
+- Passar lista para função de análise estatística existente
+- Retornar JSON com resultados
+
+========================
+NOVA FUNCIONALIDADE 2 — PÁGINA DE FORMULÁRIO (tipo Google Forms)
+========================
+
+Transformar a página "Pesquisa" em um criador de formulários simples
+
+Layout:
+- Campo: Título do formulário
+- Campo: Descrição
+- Área para adicionar perguntas dinamicamente
+
+Tipos de perguntas:
+- Resposta curta (texto)
+- Numérica
+- Múltipla escolha (opcional, pode ser simples)
+
+Funcionalidades:
+- Botão "Adicionar pergunta"
+- Cada pergunta deve ter:
+  - Texto da pergunta
+  - Tipo de resposta
+- Botão "Salvar formulário"
+- Botão "Responder formulário"
+
+Armazenamento:
+- Não usar banco de dados
+- Salvar formulário em variável global no backend ou em JSON simples
+
+========================
+PÁGINA DE RESPOSTAS
+========================
+
+Criar uma interface para responder o formulário criado:
+
+- Renderizar perguntas dinamicamente
+- Permitir envio de respostas
+- Enviar respostas para backend
+
+Backend:
+- Armazenar respostas em memória (lista/dicionário)
+
+========================
+ANÁLISE DOS DADOS DO FORMULÁRIO
+========================
+
+- Após respostas serem enviadas:
+  - Filtrar apenas respostas numéricas
+  - Aplicar análise estatística:
+    média, mediana, moda, total, desvio padrão, min, max
+
+- Atualizar automaticamente o dashboard com esses dados
+
+========================
+INTEGRAÇÃO COM IA (ajuste)
+========================
+
+- Na página IA:
+  - Usar dados analisados mais recentes
+  - Enviar para backend (/ia)
+
+Backend:
+- Usar variável de ambiente:
+  os.getenv("GROQ_API_KEY")
+
+- NÃO expor chave no frontend
+
+========================
+DESIGN (manter padrão)
+========================
+
+- Tema claro
+- Cards discretos
+- Conteúdo destacado
+- Navbar elegante
+- Layout limpo
+
+========================
+EXTRAS IMPORTANTES
+========================
+
+- Mostrar feedback visual:
+  - "Arquivo carregado"
+  - "Formulário salvo"
+  - "Respostas enviadas"
+
+- Código organizado
+- Comentários explicando partes importantes
+
+========================
+OBJETIVO
+========================
+
+Transformar o sistema em uma plataforma completa de:
+- criação de formulários
+- coleta de dados
+- análise estatística
+- upload de CSV
+- visualização em dashboard
+
+Simples, funcional e com aparência profissional.

@@ -7,20 +7,12 @@
  */
 
 export interface AnalisarResult {
-  /** Mean (average) */
   media: number;
-  /** Median */
   mediana: number;
-  /** Mode (most frequent values) */
   moda: number[];
-  /** Sum of all numbers */
   total: number;
-  /** Count of numbers */
   count: number;
-  /** Minimum value */
   min: number;
-  /** Maximum value */
   max: number;
-  /** Standard deviation */
   desvio_padrao: number;
 }

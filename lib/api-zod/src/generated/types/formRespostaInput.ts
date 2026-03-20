@@ -5,7 +5,8 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { FormResposta } from "./formResposta";
 
-export interface AnalisarInput {
-  numeros: number[];
+export interface FormRespostaInput {
+  respostas: FormResposta[];
 }
