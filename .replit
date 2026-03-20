@@ -25,32 +25,19 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Pesquisa AI — Flask (Python)"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Start application"
+args = "Pesquisa AI"
 
 [[workflows.workflow]]
-name = "Pesquisa AI — Flask (Python)"
+name = "Pesquisa AI"
 author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd pesquisa_ai && python manage.py runserver 0.0.0.0:5000"
+waitForPort = 5000
 
 [workflows.workflow.metadata]
 outputType = "webview"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "cd artifacts/pesquisa-flask && gunicorn --bind 0.0.0.0:5000 --reuse-port --reload config.wsgi:application"
-waitForPort = 5000
-
-[[workflows.workflow]]
-name = "Start application"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "gunicorn --bind 0.0.0.0:5000 --reuse-port --reload main:app"
-waitForPort = 5000
 
 [agent]
 stack = "PNPM_WORKSPACE"
@@ -67,7 +54,3 @@ packages = ["openssl", "postgresql"]
 [[ports]]
 localPort = 5000
 externalPort = 80
-
-[[ports]]
-localPort = 5173
-externalPort = 5173

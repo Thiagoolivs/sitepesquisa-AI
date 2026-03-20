@@ -1,66 +1,75 @@
 # Pesquisa AI
 
-## Overview
+## Visão Geral
 
-A survey platform for creating forms, collecting responses, and performing AI-driven statistical analysis. Built entirely with Django (Python).
+Plataforma de pesquisa para criar formulários, coletar respostas e realizar análise estatística com IA. Construída em Django (Python) com PostgreSQL.
 
 ## Stack
 
 - **Framework**: Django 5.2
 - **Python**: 3.11+
-- **AI**: Groq API (Llama 3.1) — requires `GROQ_API_KEY` env variable
-- **Server**: Gunicorn
-- **Sessions**: File-based Django sessions (`/tmp/pesquisa_sessions`)
-- **Frontend**: Vanilla JS + Chart.js 4 (no Node.js/React)
+- **Banco de dados**: PostgreSQL (via variáveis `PG*`)
+- **IA**: Groq API (Llama 3.1) — requer `GROQ_API_KEY` nos Secrets
+- **Sessões**: Django sessions no banco de dados (`django.contrib.sessions.backends.db`)
+- **Frontend**: Vanilla JS + Chart.js 4 (sem Node.js/React)
 
-## Structure
+## Estrutura
 
 ```text
-artifacts/pesquisa-flask/     # Main Django application
-├── config/                   # Django project config
-│   ├── settings.py           # Settings (sessions, middleware, static)
-│   ├── urls.py               # Root URL routing
-│   └── wsgi.py               # WSGI entrypoint for gunicorn
-├── core/                     # Main app
-│   ├── views.py              # All views + API endpoints (session-based state)
-│   ├── urls.py               # URL patterns
-│   └── stats.py              # Statistical calculations (mean, median, mode, etc.)
-├── templates/                # Django HTML templates
-│   ├── base.html             # Layout, navbar, Chart.js, toast system
-│   ├── dashboard.html        # Stats cards + bar/line charts
-│   ├── pesquisa.html         # Survey builder/responder/results tabs
-│   └── ia.html               # AI analysis via Groq
-└── static/css/style.css      # All styles
+pesquisa_ai/                  # Raiz do projeto Django
+├── manage.py                 # Ponto de entrada para comandos Django
+├── requirements.txt          # Dependências Python
+├── config/                   # Configuração do projeto Django
+│   ├── settings.py           # Configurações (DB, sessões, estáticos)
+│   ├── urls.py               # Roteamento raiz de URLs
+│   └── wsgi.py               # Entrypoint WSGI (para produção)
+├── core/                     # App principal
+│   ├── views.py              # Views + lógica de estado por sessão
+│   ├── urls.py               # Padrões de URL
+│   ├── models.py             # Modelo SavedAnalysis
+│   ├── services.py           # Parsing de CSV, estatísticas e chamada Groq
+│   ├── migrations/           # Migrações do banco de dados
+│   └── templatetags/
+│       └── json_filters.py   # Filtro |tojson para templates
+├── templates/                # Templates HTML
+│   ├── base.html             # Layout, navbar, Chart.js, sistema de toast
+│   ├── dashboard.html        # Cards de estatísticas + gráficos
+│   ├── pesquisa.html         # Abas de formulário/respostas/resultados
+│   └── ia.html               # Análise IA via Groq
+└── static/
+    └── css/
+        └── style.css         # Estilos globais
 ```
 
-## Key Features
-
-- **Dashboard**: Manual number input, CSV upload, interactive Chart.js bar + line charts
-- **Survey builder**: Numeric, multiple choice, and free-text question types
-- **Survey results**: Per-question stats with charts (numeric) and pie/bar charts (multiple choice)
-- **AI Analysis**: Groq-powered insights in Portuguese; fallback logic when API key missing
-- **Session state**: Form, responses and analysis stored in Django file sessions (no DB needed)
-
-## Running
+## Executando em Desenvolvimento
 
 ```bash
-cd artifacts/pesquisa-flask && gunicorn --bind 0.0.0.0:5000 --reuse-port --reload config.wsgi:application
+cd pesquisa_ai && python manage.py runserver 0.0.0.0:5000
 ```
 
-## API Endpoints
+## Funcionalidades Principais
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET/POST | `/formulario` | Get or save survey form |
-| POST | `/formulario/responder` | Submit answers |
-| GET | `/formulario/dados?pergunta_id=` | Per-question data |
-| GET | `/formulario/analise` | Bulk analysis of all questions |
-| POST | `/analisar` | Analyze a list of numbers |
-| POST | `/upload_csv` | Upload and analyze CSV |
-| POST | `/ia_api` | Groq AI question |
-| POST | `/ia_csv` | CSV upload + AI auto-analysis |
+- **Dashboard**: Análise de CSV com detecção automática de colunas numéricas e categóricas
+- **Formulário de pesquisa**: Tipos de pergunta numérica, múltipla escolha e texto livre
+- **Resultados**: Estatísticas por pergunta com gráficos Chart.js
+- **Análise IA**: Insights em português via Groq; graceful fallback se a chave ausente
+- **Estado de sessão**: Análise ativa armazenada em `request.session['active_analysis']`; pode ser salva no DB (`SavedAnalysis`)
 
-## Environment Variables
+## Variáveis de Ambiente
 
-- `SESSION_SECRET` — Django secret key
-- `GROQ_API_KEY` — Groq API key for AI features (optional; fallback logic included)
+| Variável | Descrição |
+|---|---|
+| `SESSION_SECRET` | Chave secreta do Django |
+| `GROQ_API_KEY` | Chave de API do Groq (features de IA) |
+| `PGDATABASE` | Nome do banco PostgreSQL |
+| `PGUSER` | Usuário do banco |
+| `PGPASSWORD` | Senha do banco |
+| `PGHOST` | Host do banco |
+| `PGPORT` | Porta do banco (padrão: 5432) |
+
+## Regras de Parsing de CSV
+
+- Colunas com fragmentos de timestamp (`_at`, `timestamp`, `date`, etc.) → descartadas silenciosamente
+- Colunas de consentimento (`consent`, `concordo`, etc.) → tipo `consent` com mensagem fixa
+- ≥ 80% dos valores parseáveis como float → coluna numérica
+- Demais colunas → categóricas (frequências em `labels`/`values`)
