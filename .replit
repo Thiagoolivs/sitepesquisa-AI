@@ -35,6 +35,10 @@ args = "Start API Server"
 task = "workflow.run"
 args = "Start Pesquisa AI"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start application"
+
 [[workflows.workflow]]
 name = "Pesquisa AI — Flask (Python)"
 author = "agent"
@@ -51,25 +55,34 @@ waitForPort = 5000
 name = "Start API Server"
 author = "agent"
 
+[workflows.workflow.metadata]
+outputType = "console"
+
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "PORT=8080 pnpm --filter @workspace/api-server run dev"
 waitForPort = 8080
 
-[workflows.workflow.metadata]
-outputType = "console"
-
 [[workflows.workflow]]
 name = "Start Pesquisa AI"
 author = "agent"
+
+[workflows.workflow.metadata]
+outputType = "console"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "PORT=5173 BASE_PATH=\"/\" pnpm --filter @workspace/pesquisa-ai run dev"
 waitForPort = 5173
 
-[workflows.workflow.metadata]
-outputType = "console"
+[[workflows.workflow]]
+name = "Start application"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "gunicorn --bind 0.0.0.0:5000 --reuse-port --reload main:app"
+waitForPort = 5000
 
 [agent]
 stack = "PNPM_WORKSPACE"
@@ -86,3 +99,7 @@ packages = ["openssl", "postgresql"]
 [[ports]]
 localPort = 5000
 externalPort = 80
+
+[[ports]]
+localPort = 5173
+externalPort = 5173
