@@ -1,0 +1,123 @@
+A aplicação já está criada. NÃO recriar o sistema. Apenas implementar melhorias específicas abaixo:
+
+========================
+1. DASHBOARD — ESTADO VAZIO
+========================
+
+- Se não houver formulário OU respostas:
+  Exibir mensagem centralizada:
+  "Aguardando dados de pesquisa ou upload"
+
+- Garantir que essa verificação funcione corretamente
+
+========================
+2. DASHBOARD — INTEGRAÇÃO COM FORMULÁRIO
+========================
+
+- Garantir que a página inicial utilize dados reais vindos do formulário criado na aba "Pesquisa"
+- Atualizar automaticamente ao enviar novas respostas
+
+========================
+3. DOIS GRÁFICOS (OBRIGATÓRIO)
+========================
+
+Adicionar/ajustar:
+
+1. Gráfico de barras:
+- Mostrar distribuição das respostas da pergunta selecionada
+
+2. Gráfico de linha:
+- Mostrar evolução das respostas da PERGUNTA PRINCIPAL
+- Usar ordem de envio das respostas
+
+========================
+4. PERGUNTA PRINCIPAL
+========================
+
+- No criador de formulário:
+  - Permitir marcar UMA pergunta como "principal"
+
+- Garantir que:
+  - o gráfico de linha use essa pergunta
+  - se não houver definida, usar a primeira como padrão
+
+========================
+5. FILTRO POR PERGUNTA
+========================
+
+- Criar dropdown no dashboard
+- Permitir selecionar qual pergunta analisar
+- Atualizar gráficos e métricas dinamicamente
+
+========================
+6. INDICADOR DE QUALIDADE DOS DADOS
+========================
+
+- Exibir:
+  "X respostas válidas de Y totais (%)"
+
+- Considerar válidos apenas dados numéricos
+
+========================
+7. UPLOAD DE CSV (AJUSTE)
+========================
+
+- Garantir upload disponível:
+  - na página IA
+  - na página inicial
+
+- Validar:
+  - arquivo vazio
+  - nenhum número encontrado
+
+- Exibir mensagens de erro amigáveis
+
+========================
+8. IA — PERGUNTAS ABERTAS
+========================
+
+- Permitir que usuário faça perguntas livres sobre os dados
+
+- Backend deve:
+  - usar dados atuais (formulário ou CSV)
+  - gerar resposta baseada nesses dados
+
+========================
+9. INSIGHT AUTOMÁTICO (SEM IA)
+========================
+
+- Implementar fallback:
+
+Exemplos:
+- "Dados concentrados próximos da média"
+- "Alta variação nos valores"
+- "Distribuição equilibrada"
+
+- Usar quando IA não estiver disponível
+
+========================
+10. MEMÓRIA DOS DADOS
+========================
+
+- Garantir que:
+  - respostas do formulário sejam armazenadas em memória
+  - suporte mínimo de 150 respostas
+  - dados não sejam perdidos durante uso normal
+
+========================
+11. FEEDBACK VISUAL
+========================
+
+- Exibir mensagens:
+  - "Formulário salvo"
+  - "Resposta enviada"
+  - "Arquivo analisado"
+
+========================
+REGRAS IMPORTANTES
+========================
+
+- NÃO recriar estrutura do projeto
+- NÃO alterar arquitetura existente
+- Apenas melhorar funcionalidades atuais
+- Código organizado e comentado

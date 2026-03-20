@@ -116,16 +116,26 @@ def get_respostas_por_pergunta(pergunta_id):
 @app.route("/")
 def dashboard():
     perguntas_numericas = []
+    pergunta_principal_id = None
     if formulario_salvo:
         perguntas_numericas = [
             p for p in formulario_salvo.get("perguntas", [])
             if p.get("tipo") == "numerica"
         ]
+        # Busca a pergunta marcada como principal
+        for p in formulario_salvo.get("perguntas", []):
+            if p.get("principal") and p.get("tipo") == "numerica":
+                pergunta_principal_id = p["id"]
+                break
+        # Fallback: primeira numérica
+        if not pergunta_principal_id and perguntas_numericas:
+            pergunta_principal_id = perguntas_numericas[0]["id"]
     return render_template(
         "dashboard.html",
         analise=ultimo_analise,
         formulario=formulario_salvo,
         perguntas_numericas=perguntas_numericas,
+        pergunta_principal_id=pergunta_principal_id,
         total_respostas=len(respostas_armazenadas),
     )
 
