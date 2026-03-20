@@ -25,8 +25,7 @@ MIDDLEWARE = [
 
 X_FRAME_OPTIONS = 'ALLOWALL'
 
-SESSION_ENGINE = 'django.contrib.sessions.backends.file'
-SESSION_FILE_PATH = '/tmp/pesquisa_sessions'
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 
 ROOT_URLCONF = 'config.urls'
 
