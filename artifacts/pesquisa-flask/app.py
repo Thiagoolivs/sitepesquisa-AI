@@ -22,6 +22,13 @@ def liberar_porta(porta):
 app = Flask(__name__)
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 
+@app.after_request
+def no_cache(response):
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
 # ── Armazenamento em memória (suporta 150+ respostas) ─────────────────────
 formulario_salvo = None
 respostas_armazenadas = []  # lista de listas: cada item = uma submissão
